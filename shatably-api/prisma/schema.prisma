@@ -1,0 +1,446 @@
+// Prisma Schema for Shatably
+// Using PostgreSQL (can use Supabase free tier or Railway)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============ USERS ============
+
+enum UserType {
+  homeowner
+  contractor
+  designer
+}
+
+enum UserRole {
+  customer
+  admin
+  employee
+}
+
+model User {
+  id                 String    @id @default(uuid())
+  phone              String    @unique
+  email              String?   @unique
+  name               String?
+  type               UserType  @default(homeowner)
+  role               UserRole  @default(customer)
+  avatar             String?
+  languagePreference String    @default("ar")
+  isActive           Boolean   @default(true)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  // Relations
+  addresses          Address[]
+  orders             Order[]
+  cart               Cart?
+  wishlist           Wishlist[]
+  materialLists      MaterialList[]
+  reviews            Review[]
+  otpCodes           OtpCode[]
+
+  @@index([phone])
+  @@index([email])
+}
+
+model OtpCode {
+  id        String   @id @default(uuid())
+  userId    String?
+  phone     String
+  code      String
+  expiresAt DateTime
+  verified  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([phone, code])
+}
+
+model Address {
+  id           String  @id @default(uuid())
+  userId       String
+  label        String  // "Home", "Work", "Project Site"
+  fullAddress  String
+  area         String
+  city         String
+  governorate  String
+  landmark     String?
+  contactName  String
+  contactPhone String
+  latitude     Float?
+  longitude    Float?
+  isDefault    Boolean @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orders Order[]
+
+  @@index([userId])
+}
+
+// ============ PRODUCTS ============
+
+model Category {
+  id          String     @id @default(uuid())
+  nameAr      String
+  nameEn      String
+  slug        String     @unique
+  icon        String?
+  image       String?
+  parentId    String?
+  sortOrder   Int        @default(0)
+  isActive    Boolean    @default(true)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  parent   Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryHierarchy")
+  products Product[]
+
+  @@index([slug])
+  @@index([parentId])
+}
+
+model Brand {
+  id        String    @id @default(uuid())
+  nameAr    String
+  nameEn    String
+  slug      String    @unique
+  logo      String?
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  products Product[]
+
+  @@index([slug])
+}
+
+enum ProductUnit {
+  piece
+  bag
+  ton
+  meter
+  sqmeter
+  cubicmeter
+  kg
+  liter
+  box
+  roll
+}
+
+model Product {
+  id              String      @id @default(uuid())
+  sku             String      @unique
+  nameAr          String
+  nameEn          String
+  descriptionAr   String?
+  descriptionEn   String?
+  price           Decimal     @db.Decimal(10, 2)
+  originalPrice   Decimal?    @db.Decimal(10, 2)
+  unit            ProductUnit @default(piece)
+  stock           Int         @default(0)
+  minOrderQty     Int         @default(1)
+  maxOrderQty     Int?
+  weight          Decimal?    @db.Decimal(10, 2) // in kg
+  categoryId      String
+  brandId         String?
+  specifications  Json?
+  isFeatured      Boolean     @default(false)
+  isActive        Boolean     @default(true)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  category   Category      @relation(fields: [categoryId], references: [id])
+  brand      Brand?        @relation(fields: [brandId], references: [id])
+  images     ProductImage[]
+  cartItems  CartItem[]
+  orderItems OrderItem[]
+  wishlist   Wishlist[]
+  reviews    Review[]
+
+  @@index([sku])
+  @@index([categoryId])
+  @@index([brandId])
+  @@index([isFeatured])
+  @@index([price])
+}
+
+model ProductImage {
+  id        String  @id @default(uuid())
+  productId String
+  url       String
+  alt       String?
+  sortOrder Int     @default(0)
+  isPrimary Boolean @default(false)
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+}
+
+model Review {
+  id        String   @id @default(uuid())
+  userId    String
+  productId String
+  rating    Int      // 1-5
+  comment   String?
+  isApproved Boolean @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId])
+  @@index([productId])
+}
+
+// ============ CART ============
+
+model Cart {
+  id        String     @id @default(uuid())
+  userId    String     @unique
+  promoCode String?
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items CartItem[]
+}
+
+model CartItem {
+  id        String   @id @default(uuid())
+  cartId    String
+  productId String
+  quantity  Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  cart    Cart    @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([cartId, productId])
+  @@index([cartId])
+}
+
+model Wishlist {
+  id        String   @id @default(uuid())
+  userId    String
+  productId String
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId])
+  @@index([userId])
+}
+
+// ============ ORDERS ============
+
+enum OrderStatus {
+  pending
+  confirmed
+  processing
+  ready
+  in_transit
+  delivered
+  cancelled
+}
+
+enum PaymentMethod {
+  cod
+  card
+  fawry
+  wallet
+}
+
+enum PaymentStatus {
+  pending
+  paid
+  failed
+  refunded
+}
+
+enum DeliveryType {
+  express
+  scheduled
+}
+
+model Order {
+  id              String        @id @default(uuid())
+  orderNumber     String        @unique
+  userId          String
+  addressId       String
+  status          OrderStatus   @default(pending)
+  paymentMethod   PaymentMethod
+  paymentStatus   PaymentStatus @default(pending)
+  deliveryType    DeliveryType
+  scheduledDate   DateTime?
+  scheduledTime   String?       // "morning", "afternoon", "evening"
+  subtotal        Decimal       @db.Decimal(10, 2)
+  deliveryFee     Decimal       @db.Decimal(10, 2)
+  discount        Decimal       @db.Decimal(10, 2) @default(0)
+  total           Decimal       @db.Decimal(10, 2)
+  promoCode       String?
+  notes           String?
+  cancelReason    String?
+  driverId        String?
+  deliveredAt     DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  user          User              @relation(fields: [userId], references: [id])
+  address       Address           @relation(fields: [addressId], references: [id])
+  driver        Driver?           @relation(fields: [driverId], references: [id])
+  items         OrderItem[]
+  statusHistory OrderStatusHistory[]
+  payment       Payment?
+
+  @@index([orderNumber])
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model OrderItem {
+  id        String  @id @default(uuid())
+  orderId   String
+  productId String
+  nameAr    String  // Snapshot at order time
+  nameEn    String
+  sku       String
+  price     Decimal @db.Decimal(10, 2)
+  quantity  Int
+  total     Decimal @db.Decimal(10, 2)
+
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+
+  @@index([orderId])
+}
+
+model OrderStatusHistory {
+  id        String      @id @default(uuid())
+  orderId   String
+  status    OrderStatus
+  note      String?
+  createdBy String?     // User ID who changed status
+  createdAt DateTime    @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+}
+
+model Payment {
+  id              String        @id @default(uuid())
+  orderId         String        @unique
+  method          PaymentMethod
+  status          PaymentStatus @default(pending)
+  amount          Decimal       @db.Decimal(10, 2)
+  transactionId   String?
+  paymentRef      String?       // External reference (Fawry, etc.)
+  paidAt          DateTime?
+  failureReason   String?
+  metadata        Json?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([transactionId])
+}
+
+// ============ DELIVERY ============
+
+model Driver {
+  id          String   @id @default(uuid())
+  name        String
+  phone       String   @unique
+  email       String?
+  vehicle     String?
+  plateNumber String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  orders Order[]
+
+  @@index([phone])
+}
+
+// ============ MATERIAL LISTS ============
+
+enum MaterialListStatus {
+  pending
+  processing
+  ready
+  completed
+  cancelled
+}
+
+model MaterialList {
+  id           String             @id @default(uuid())
+  userId       String
+  fileName     String
+  fileUrl      String
+  fileType     String
+  notes        String?
+  status       MaterialListStatus @default(pending)
+  assignedTo   String?            // Employee user ID
+  processedAt  DateTime?
+  cartSnapshot Json?              // Products added to cart
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+}
+
+// ============ PROMO CODES ============
+
+enum PromoType {
+  percentage
+  fixed
+}
+
+model PromoCode {
+  id            String    @id @default(uuid())
+  code          String    @unique
+  type          PromoType
+  value         Decimal   @db.Decimal(10, 2)
+  minOrderAmount Decimal? @db.Decimal(10, 2)
+  maxDiscount   Decimal?  @db.Decimal(10, 2)
+  usageLimit    Int?
+  usedCount     Int       @default(0)
+  startDate     DateTime
+  endDate       DateTime
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([code])
+}
+
+// ============ SETTINGS ============
+
+model Setting {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
