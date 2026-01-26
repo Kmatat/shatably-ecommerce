@@ -22,6 +22,20 @@ enum UserRole {
   customer
   admin
   employee
+  super_admin
+}
+
+enum AdminPermission {
+  manage_products
+  manage_categories
+  manage_orders
+  manage_customers
+  manage_content
+  manage_drivers
+  manage_promos
+  manage_settings
+  manage_admins
+  view_reports
 }
 
 model User {
@@ -31,6 +45,7 @@ model User {
   name               String?
   type               UserType  @default(homeowner)
   role               UserRole  @default(customer)
+  permissions        AdminPermission[] @default([])
   avatar             String?
   languagePreference String    @default("ar")
   isActive           Boolean   @default(true)
@@ -443,4 +458,38 @@ model Setting {
   value     Json
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// ============ CMS CONTENT ============
+
+enum ContentType {
+  banner
+  page
+  announcement
+  faq
+  about
+  terms
+  privacy
+}
+
+model Content {
+  id          String      @id @default(uuid())
+  type        ContentType
+  key         String      @unique
+  titleAr     String?
+  titleEn     String?
+  contentAr   String?     @db.Text
+  contentEn   String?     @db.Text
+  imageUrl    String?
+  linkUrl     String?
+  sortOrder   Int         @default(0)
+  isActive    Boolean     @default(true)
+  startDate   DateTime?
+  endDate     DateTime?
+  metadata    Json?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@index([type])
+  @@index([key])
 }

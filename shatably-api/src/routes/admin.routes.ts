@@ -255,4 +255,347 @@ router.delete('/promo-codes/:id', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+// ============ CONTENT MANAGEMENT ============
+const contentSchema = z.object({
+  type: z.enum(['banner', 'page', 'announcement', 'faq', 'about', 'terms', 'privacy']),
+  key: z.string().min(2),
+  titleAr: z.string().optional(),
+  titleEn: z.string().optional(),
+  contentAr: z.string().optional(),
+  contentEn: z.string().optional(),
+  imageUrl: z.string().url().optional().nullable(),
+  linkUrl: z.string().optional().nullable(),
+  sortOrder: z.number().int().optional(),
+  isActive: z.boolean().optional(),
+  startDate: z.string().optional().nullable().transform((v) => v ? new Date(v) : null),
+  endDate: z.string().optional().nullable().transform((v) => v ? new Date(v) : null),
+  metadata: z.record(z.any()).optional(),
+});
+
+router.get('/content', async (req, res, next) => {
+  try {
+    const type = req.query.type as string;
+    const where: any = {};
+    if (type && type !== 'all') where.type = type;
+
+    const content = await prisma.content.findMany({
+      where,
+      orderBy: [{ type: 'asc' }, { sortOrder: 'asc' }],
+    });
+
+    res.json({ success: true, data: content });
+  } catch (error) { next(error); }
+});
+
+router.get('/content/:id', async (req, res, next) => {
+  try {
+    const content = await prisma.content.findUnique({ where: { id: req.params.id } });
+    if (!content) throw new AppError('Content not found', 404);
+    res.json({ success: true, data: content });
+  } catch (error) { next(error); }
+});
+
+router.post('/content', validateBody(contentSchema), async (req, res, next) => {
+  try {
+    const content = await prisma.content.create({ data: req.body });
+    res.status(201).json({ success: true, data: content });
+  } catch (error) { next(error); }
+});
+
+router.put('/content/:id', validateBody(contentSchema.partial()), async (req, res, next) => {
+  try {
+    const content = await prisma.content.update({ where: { id: req.params.id }, data: req.body });
+    res.json({ success: true, data: content });
+  } catch (error) { next(error); }
+});
+
+router.delete('/content/:id', async (req, res, next) => {
+  try {
+    await prisma.content.delete({ where: { id: req.params.id } });
+    res.json({ success: true, message: 'Content deleted' });
+  } catch (error) { next(error); }
+});
+
+// ============ ADMIN USERS MANAGEMENT ============
+const adminUserSchema = z.object({
+  phone: z.string().min(10),
+  name: z.string().min(2),
+  email: z.string().email().optional(),
+  role: z.enum(['admin', 'employee', 'super_admin']),
+  permissions: z.array(z.enum([
+    'manage_products', 'manage_categories', 'manage_orders', 'manage_customers',
+    'manage_content', 'manage_drivers', 'manage_promos', 'manage_settings',
+    'manage_admins', 'view_reports',
+  ])).optional(),
+  isActive: z.boolean().optional(),
+});
+
+router.get('/users', async (req, res, next) => {
+  try {
+    const role = req.query.role as string;
+    const where: any = { role: { in: ['admin', 'employee', 'super_admin'] } };
+    if (role && role !== 'all') where.role = role;
+
+    const users = await prisma.user.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true, phone: true, name: true, email: true, role: true,
+        permissions: true, isActive: true, createdAt: true,
+      },
+    });
+
+    res.json({ success: true, data: users });
+  } catch (error) { next(error); }
+});
+
+router.get('/users/:id', async (req, res, next) => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: req.params.id },
+      select: {
+        id: true, phone: true, name: true, email: true, role: true,
+        permissions: true, isActive: true, createdAt: true, updatedAt: true,
+      },
+    });
+    if (!user) throw new AppError('User not found', 404);
+    res.json({ success: true, data: user });
+  } catch (error) { next(error); }
+});
+
+router.post('/users', validateBody(adminUserSchema), async (req, res, next) => {
+  try {
+    const existingUser = await prisma.user.findUnique({ where: { phone: req.body.phone } });
+    if (existingUser) throw new AppError('User with this phone already exists', 400);
+
+    const user = await prisma.user.create({
+      data: {
+        ...req.body,
+        isActive: true,
+      },
+      select: {
+        id: true, phone: true, name: true, email: true, role: true,
+        permissions: true, isActive: true, createdAt: true,
+      },
+    });
+
+    res.status(201).json({ success: true, data: user });
+  } catch (error) { next(error); }
+});
+
+router.put('/users/:id', validateBody(adminUserSchema.partial()), async (req, res, next) => {
+  try {
+    const user = await prisma.user.update({
+      where: { id: req.params.id },
+      data: req.body,
+      select: {
+        id: true, phone: true, name: true, email: true, role: true,
+        permissions: true, isActive: true, createdAt: true,
+      },
+    });
+
+    res.json({ success: true, data: user });
+  } catch (error) { next(error); }
+});
+
+router.delete('/users/:id', async (req, res, next) => {
+  try {
+    const user = await prisma.user.findUnique({ where: { id: req.params.id } });
+    if (!user) throw new AppError('User not found', 404);
+    if (user.role === 'super_admin') throw new AppError('Cannot delete super admin', 400);
+
+    await prisma.user.update({ where: { id: req.params.id }, data: { isActive: false } });
+    res.json({ success: true, message: 'User deactivated' });
+  } catch (error) { next(error); }
+});
+
+// ============ CUSTOMERS MANAGEMENT ============
+router.get('/customers', async (req, res, next) => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(100, parseInt(req.query.limit as string) || 20);
+    const search = req.query.search as string;
+    const type = req.query.type as string;
+    const { skip } = paginate({ page, limit });
+
+    const where: any = { role: 'customer' };
+    if (search) where.OR = [{ name: { contains: search, mode: 'insensitive' } }, { phone: { contains: search } }];
+    if (type && type !== 'all') where.type = type;
+
+    const [customers, total] = await Promise.all([
+      prisma.user.findMany({
+        where, skip, take: limit, orderBy: { createdAt: 'desc' },
+        select: {
+          id: true, phone: true, name: true, email: true, type: true,
+          isActive: true, createdAt: true,
+          _count: { select: { orders: true } },
+        },
+      }),
+      prisma.user.count({ where }),
+    ]);
+
+    res.json({
+      success: true,
+      ...createPaginatedResponse(customers.map((c) => ({
+        id: c.id, phone: c.phone, name: c.name, email: c.email, type: c.type,
+        isActive: c.isActive, createdAt: c.createdAt, ordersCount: c._count.orders,
+      })), total, page, limit),
+    });
+  } catch (error) { next(error); }
+});
+
+// ============ DRIVERS MANAGEMENT ============
+const driverSchema = z.object({
+  name: z.string().min(2),
+  phone: z.string().min(10),
+  email: z.string().email().optional(),
+  vehicle: z.string().optional(),
+  plateNumber: z.string().optional(),
+  isActive: z.boolean().optional(),
+});
+
+router.get('/drivers', async (req, res, next) => {
+  try {
+    const drivers = await prisma.driver.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: { _count: { select: { orders: true } } },
+    });
+
+    res.json({
+      success: true,
+      data: drivers.map((d) => ({
+        id: d.id, name: d.name, phone: d.phone, email: d.email,
+        vehicle: d.vehicle, plateNumber: d.plateNumber,
+        isActive: d.isActive, ordersCount: d._count.orders, createdAt: d.createdAt,
+      })),
+    });
+  } catch (error) { next(error); }
+});
+
+router.post('/drivers', validateBody(driverSchema), async (req, res, next) => {
+  try {
+    const driver = await prisma.driver.create({ data: { ...req.body, isActive: true } });
+    res.status(201).json({ success: true, data: driver });
+  } catch (error) { next(error); }
+});
+
+router.put('/drivers/:id', validateBody(driverSchema.partial()), async (req, res, next) => {
+  try {
+    const driver = await prisma.driver.update({ where: { id: req.params.id }, data: req.body });
+    res.json({ success: true, data: driver });
+  } catch (error) { next(error); }
+});
+
+router.delete('/drivers/:id', async (req, res, next) => {
+  try {
+    await prisma.driver.update({ where: { id: req.params.id }, data: { isActive: false } });
+    res.json({ success: true, message: 'Driver deactivated' });
+  } catch (error) { next(error); }
+});
+
+// ============ REPORTS ============
+router.get('/reports', async (req, res, next) => {
+  try {
+    const range = req.query.range as string || 'week';
+    const now = new Date();
+    let startDate = new Date();
+
+    switch (range) {
+      case 'today': startDate.setHours(0, 0, 0, 0); break;
+      case 'week': startDate.setDate(now.getDate() - 7); break;
+      case 'month': startDate.setMonth(now.getMonth() - 1); break;
+      case 'year': startDate.setFullYear(now.getFullYear() - 1); break;
+    }
+
+    const [revenue, orders, customers, products, topProducts, recentOrders, salesByCategory] = await Promise.all([
+      prisma.order.aggregate({ where: { createdAt: { gte: startDate }, status: { not: 'cancelled' } }, _sum: { total: true } }),
+      prisma.order.count({ where: { createdAt: { gte: startDate } } }),
+      prisma.user.count({ where: { role: 'customer', createdAt: { gte: startDate } } }),
+      prisma.product.count({ where: { isActive: true } }),
+      prisma.orderItem.groupBy({
+        by: ['productId'], where: { order: { createdAt: { gte: startDate }, status: { not: 'cancelled' } } },
+        _sum: { quantity: true, total: true }, orderBy: { _sum: { quantity: 'desc' } }, take: 5,
+      }),
+      prisma.order.findMany({
+        where: { createdAt: { gte: startDate } }, take: 10, orderBy: { createdAt: 'desc' },
+        include: { user: { select: { name: true, phone: true } } },
+      }),
+      prisma.order.findMany({
+        where: { createdAt: { gte: startDate }, status: { not: 'cancelled' } },
+        include: { items: { include: { product: { include: { category: true } } } } },
+      }),
+    ]);
+
+    const productIds = topProducts.map((p) => p.productId);
+    const productsData = await prisma.product.findMany({ where: { id: { in: productIds } } });
+    const productMap = new Map(productsData.map((p) => [p.id, p]));
+
+    const categoryStats: Record<string, { sales: number; count: number }> = {};
+    let totalSales = 0;
+    salesByCategory.forEach((order) => {
+      order.items.forEach((item) => {
+        const catName = item.product.category.nameEn;
+        if (!categoryStats[catName]) categoryStats[catName] = { sales: 0, count: 0 };
+        categoryStats[catName].sales += Number(item.total);
+        categoryStats[catName].count += item.quantity;
+        totalSales += Number(item.total);
+      });
+    });
+
+    res.json({
+      success: true,
+      data: {
+        totalRevenue: Number(revenue._sum.total || 0),
+        totalOrders: orders,
+        totalCustomers: customers,
+        totalProducts: products,
+        revenueChange: 0,
+        ordersChange: 0,
+        customersChange: 0,
+        topProducts: topProducts.map((p) => {
+          const product = productMap.get(p.productId);
+          return {
+            id: p.productId,
+            name: product?.nameEn || 'Unknown',
+            sold: p._sum.quantity || 0,
+            revenue: Number(p._sum.total || 0),
+          };
+        }),
+        recentOrders: recentOrders.map((o) => ({
+          id: o.id, orderNumber: o.orderNumber, customerName: o.user.name || o.user.phone,
+          total: Number(o.total), status: o.status, date: o.createdAt.toISOString(),
+        })),
+        salesByCategory: Object.entries(categoryStats).map(([category, stats]) => ({
+          category, sales: stats.sales,
+          percentage: totalSales > 0 ? Math.round((stats.sales / totalSales) * 100) : 0,
+        })).sort((a, b) => b.sales - a.sales),
+      },
+    });
+  } catch (error) { next(error); }
+});
+
+// ============ CATEGORIES (full CRUD) ============
+router.get('/categories', async (req, res, next) => {
+  try {
+    const categories = await prisma.category.findMany({
+      orderBy: [{ parentId: 'asc' }, { sortOrder: 'asc' }],
+      include: {
+        parent: { select: { id: true, nameAr: true, nameEn: true } },
+        _count: { select: { products: true, children: true } },
+      },
+    });
+
+    res.json({
+      success: true,
+      data: categories.map((cat) => ({
+        id: cat.id, nameAr: cat.nameAr, nameEn: cat.nameEn, slug: cat.slug,
+        icon: cat.icon, image: cat.image, parentId: cat.parentId, parent: cat.parent,
+        sortOrder: cat.sortOrder, isActive: cat.isActive,
+        productCount: cat._count.products, childrenCount: cat._count.children,
+        createdAt: cat.createdAt,
+      })),
+    });
+  } catch (error) { next(error); }
+});
+
 export default router;

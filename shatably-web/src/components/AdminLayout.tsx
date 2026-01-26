@@ -19,6 +19,9 @@ import {
   ChevronDown,
   LogOut,
   Globe,
+  FolderTree,
+  Pencil,
+  Shield,
 } from 'lucide-react';
 import { useLanguageStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
@@ -37,9 +40,12 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
     { name: { ar: 'لوحة التحكم', en: 'Dashboard' }, href: '/admin', icon: LayoutDashboard },
     { name: { ar: 'الطلبات', en: 'Orders' }, href: '/admin/orders', icon: ShoppingCart },
     { name: { ar: 'المنتجات', en: 'Products' }, href: '/admin/products', icon: Package },
+    { name: { ar: 'الفئات', en: 'Categories' }, href: '/admin/categories', icon: FolderTree },
     { name: { ar: 'قوائم المواد', en: 'Material Lists' }, href: '/admin/material-lists', icon: FileText },
     { name: { ar: 'العملاء', en: 'Customers' }, href: '/admin/customers', icon: Users },
     { name: { ar: 'التوصيل', en: 'Delivery' }, href: '/admin/delivery', icon: Truck },
+    { name: { ar: 'المحتوى', en: 'Content' }, href: '/admin/content', icon: Pencil },
+    { name: { ar: 'المستخدمين', en: 'Admin Users' }, href: '/admin/users', icon: Shield },
     { name: { ar: 'التقارير', en: 'Reports' }, href: '/admin/reports', icon: BarChart3 },
     { name: { ar: 'الإعدادات', en: 'Settings' }, href: '/admin/settings', icon: Settings },
   ];
