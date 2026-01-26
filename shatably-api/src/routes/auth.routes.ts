@@ -142,7 +142,7 @@ router.post('/verify-otp', validateBody(verifyOtpSchema), async (req, res, next)
       process.env.JWT_SECRET || 'secret',
       {
         expiresIn: process.env.JWT_EXPIRES_IN || '7d',
-      }
+      } as jwt.SignOptions
     );
 
     res.json({

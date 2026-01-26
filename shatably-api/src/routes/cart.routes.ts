@@ -115,8 +115,8 @@ router.get('/', async (req, res, next) => {
         discount = calculateDiscount(subtotal, {
           type: promo.type,
           value: Number(promo.value),
-          minOrderAmount: promo.minOrderAmount,
-          maxDiscount: promo.maxDiscount,
+          minOrderAmount: promo.minOrderAmount ? Number(promo.minOrderAmount) : null,
+          maxDiscount: promo.maxDiscount ? Number(promo.maxDiscount) : null,
         });
         promoDetails = {
           code: promo.code,

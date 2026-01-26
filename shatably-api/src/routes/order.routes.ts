@@ -128,7 +128,7 @@ router.post('/', validateBody(createOrderSchema), async (req, res, next) => {
       });
       if (promo) {
         discount = calculateDiscount(subtotal, { type: promo.type, value: Number(promo.value),
-          minOrderAmount: promo.minOrderAmount, maxDiscount: promo.maxDiscount });
+          minOrderAmount: promo.minOrderAmount ? Number(promo.minOrderAmount) : null, maxDiscount: promo.maxDiscount ? Number(promo.maxDiscount) : null });
         await prisma.promoCode.update({ where: { id: promo.id }, data: { usedCount: { increment: 1 } } });
       }
     }

@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, ProductUnit } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
@@ -119,39 +119,59 @@ async function main() {
       sku: 'CEM-001', nameAr: 'أسمنت العربي بورتلاند', nameEn: 'Arab Portland Cement',
       descriptionAr: 'أسمنت بورتلاند عالي الجودة للأعمال الإنشائية',
       descriptionEn: 'High quality Portland cement for construction works',
-      price: 95, unit: 'bag', stock: 500, categoryId: cementCat?.id, brandId: arabCement?.id,
+      price: 95, unit: ProductUnit.bag, stock: 500, categoryId: cementCat?.id, brandId: arabCement?.id,
       isFeatured: true, minOrderQty: 10, weight: 50,
     },
     {
       sku: 'STL-001', nameAr: 'حديد عز 12 مم', nameEn: 'Ezz Steel Rebar 12mm',
       descriptionAr: 'حديد تسليح عالي المقاومة',
       descriptionEn: 'High tensile steel rebar',
-      price: 42500, unit: 'ton', stock: 50, categoryId: steelCat?.id, brandId: ezzSteel?.id,
+      price: 42500, unit: ProductUnit.ton, stock: 50, categoryId: steelCat?.id, brandId: ezzSteel?.id,
       isFeatured: true, minOrderQty: 1, weight: 1000,
     },
     {
       sku: 'TIL-001', nameAr: 'بلاط كليوباترا 60x60', nameEn: 'Cleopatra Tiles 60x60',
       descriptionAr: 'بلاط بورسلين لامع عالي الجودة',
       descriptionEn: 'High quality glossy porcelain tiles',
-      price: 185, originalPrice: 220, unit: 'box', stock: 200, categoryId: tilesCat?.id, brandId: cleopatra?.id,
+      price: 185, originalPrice: 220, unit: ProductUnit.box, stock: 200, categoryId: tilesCat?.id, brandId: cleopatra?.id,
       isFeatured: true, minOrderQty: 5,
     },
     {
       sku: 'PNT-001', nameAr: 'دهان جوتن فينوماستيك', nameEn: 'Jotun Fenomastic Paint',
       descriptionAr: 'دهان داخلي فاخر قابل للغسيل',
       descriptionEn: 'Premium washable interior paint',
-      price: 1450, unit: 'piece', stock: 100, categoryId: paintsCat?.id, brandId: jotun?.id,
+      price: 1450, unit: ProductUnit.piece, stock: 100, categoryId: paintsCat?.id, brandId: jotun?.id,
       isFeatured: true, minOrderQty: 1,
     },
   ];
 
   for (const product of productsData) {
-    if (product.categoryId) {
-      const created = await prisma.product.upsert({
-        where: { sku: product.sku },
-        update: product,
-        create: { ...product, isActive: true },
-      });
+    if (product.categoryId && product.brandId) {
+      const existingProduct = await prisma.product.findUnique({ where: { sku: product.sku } });
+
+      const created = existingProduct
+        ? await prisma.product.update({
+            where: { sku: product.sku },
+            data: {
+              nameAr: product.nameAr, nameEn: product.nameEn,
+              descriptionAr: product.descriptionAr, descriptionEn: product.descriptionEn,
+              price: product.price, originalPrice: product.originalPrice,
+              unit: product.unit, stock: product.stock,
+              isFeatured: product.isFeatured, minOrderQty: product.minOrderQty,
+              weight: product.weight, categoryId: product.categoryId, brandId: product.brandId,
+            },
+          })
+        : await prisma.product.create({
+            data: {
+              sku: product.sku, nameAr: product.nameAr, nameEn: product.nameEn,
+              descriptionAr: product.descriptionAr, descriptionEn: product.descriptionEn,
+              price: product.price, originalPrice: product.originalPrice,
+              unit: product.unit, stock: product.stock,
+              isFeatured: product.isFeatured, minOrderQty: product.minOrderQty,
+              weight: product.weight, categoryId: product.categoryId, brandId: product.brandId,
+              isActive: true,
+            },
+          });
 
       // Add placeholder image
       await prisma.productImage.upsert({

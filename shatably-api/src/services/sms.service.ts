@@ -69,7 +69,7 @@ class SmsMisrProvider implements SmsProvider {
         method: 'POST',
       });
 
-      const data = await response.json();
+      const data = await response.json() as { code?: string | number };
 
       if (data.code === '1901' || data.code === 1901) {
         console.log(`✅ SMS sent to ${phone} via SMS Misr`);
@@ -124,7 +124,7 @@ class UnifonicSmsProvider implements SmsProvider {
         }),
       });
 
-      const data = await response.json();
+      const data = await response.json() as { success?: string; Status?: string };
 
       if (data.success === 'true' || data.Status === 'Sent') {
         console.log(`✅ SMS sent to ${phone}`);

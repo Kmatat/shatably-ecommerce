@@ -39,7 +39,7 @@ router.get('/', validateQuery(productsQuerySchema), async (req, res, next) => {
       inStock,
       featured,
       sort,
-    } = req.query as z.infer<typeof productsQuerySchema>;
+    } = req.query as unknown as z.infer<typeof productsQuerySchema>;
 
     const { skip } = paginate({ page, limit });
 
