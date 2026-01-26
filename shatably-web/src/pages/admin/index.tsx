@@ -1,5 +1,6 @@
 import Head from 'next/head';
 import Link from 'next/link';
+import { useState, useEffect } from 'react';
 import {
   TrendingUp,
   TrendingDown,
@@ -12,42 +13,43 @@ import {
   Truck,
   FileText,
   AlertCircle,
+  Loader2,
 } from 'lucide-react';
 import AdminLayout from '@/components/AdminLayout';
 import { useLanguageStore } from '@/lib/store';
 import { formatPrice, cn } from '@/lib/utils';
 
-// Mock dashboard data
-const dashboardData = {
-  stats: [
-    { id: 'revenue', value: 245000, change: 12.5, isUp: true },
-    { id: 'orders', value: 156, change: 8.2, isUp: true },
-    { id: 'customers', value: 1234, change: 3.1, isUp: true },
-    { id: 'avgOrder', value: 1570, change: -2.4, isUp: false },
-  ],
-  recentOrders: [
-    { id: 'SH-XYZ789', customer: 'محمد أحمد', total: 4500, status: 'pending', time: '5 دقائق' },
-    { id: 'SH-ABC123', customer: 'أحمد علي', total: 12300, status: 'processing', time: '15 دقيقة' },
-    { id: 'SH-DEF456', customer: 'سارة محمود', total: 8750, status: 'in_transit', time: '30 دقيقة' },
-    { id: 'SH-GHI012', customer: 'عمر حسن', total: 3200, status: 'delivered', time: '1 ساعة' },
-    { id: 'SH-JKL345', customer: 'فاطمة علي', total: 6800, status: 'pending', time: '2 ساعة' },
-  ],
-  pendingMaterialLists: 3,
-  lowStockProducts: 8,
-  pendingDeliveries: 12,
-};
+interface DashboardData {
+  stats: {
+    todayOrders: number;
+    todayRevenue: number;
+    totalCustomers: number;
+    pendingLists: number;
+    lowStockProducts: number;
+  };
+  recentOrders: {
+    id: string;
+    orderNumber: string;
+    customer: string;
+    total: number;
+    status: string;
+    createdAt: string;
+  }[];
+}
 
 export default function AdminDashboard() {
   const { language } = useLanguageStore();
+  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<DashboardData | null>(null);
 
   const content = {
     ar: {
       title: 'لوحة التحكم',
       welcome: 'مرحباً بك في لوحة تحكم شطابلي',
       stats: {
-        revenue: 'الإيرادات',
-        orders: 'الطلبات',
-        customers: 'العملاء',
+        revenue: 'إيرادات اليوم',
+        orders: 'طلبات اليوم',
+        customers: 'إجمالي العملاء',
         avgOrder: 'متوسط الطلب',
       },
       today: 'اليوم',
@@ -73,14 +75,21 @@ export default function AdminDashboard() {
       lowStockProducts: 'منتجات قاربت على النفاد',
       pendingDeliveries: 'طلبات جاهزة للتوصيل',
       review: 'مراجعة',
+      noOrders: 'لا توجد طلبات حديثة',
+      loading: 'جاري التحميل...',
+      timeAgo: {
+        minutes: 'دقيقة',
+        hours: 'ساعة',
+        days: 'يوم',
+      },
     },
     en: {
       title: 'Dashboard',
       welcome: 'Welcome to Shatably Admin',
       stats: {
-        revenue: 'Revenue',
-        orders: 'Orders',
-        customers: 'Customers',
+        revenue: "Today's Revenue",
+        orders: "Today's Orders",
+        customers: 'Total Customers',
         avgOrder: 'Avg. Order',
       },
       today: 'Today',
@@ -106,16 +115,49 @@ export default function AdminDashboard() {
       lowStockProducts: 'Products low in stock',
       pendingDeliveries: 'Orders ready for delivery',
       review: 'Review',
+      noOrders: 'No recent orders',
+      loading: 'Loading...',
+      timeAgo: {
+        minutes: 'min',
+        hours: 'hr',
+        days: 'day',
+      },
     },
   };
 
   const t = content[language];
 
-  const statIcons = {
-    revenue: DollarSign,
-    orders: ShoppingCart,
-    customers: Users,
-    avgOrder: TrendingUp,
+  useEffect(() => {
+    fetchDashboard();
+  }, []);
+
+  const fetchDashboard = async () => {
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/dashboard`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+      });
+      if (response.ok) {
+        const result = await response.json();
+        setData(result.data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch dashboard:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getTimeAgo = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 60) return `${diffMins} ${t.timeAgo.minutes}`;
+    if (diffHours < 24) return `${diffHours} ${t.timeAgo.hours}`;
+    return `${diffDays} ${t.timeAgo.days}`;
   };
 
   const statColors = {
@@ -135,6 +177,27 @@ export default function AdminDashboard() {
     cancelled: 'bg-red-100 text-red-800',
   };
 
+  if (loading) {
+    return (
+      <AdminLayout title={t.title}>
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="w-8 h-8 animate-spin text-primary-500" />
+          <span className="ms-2 text-gray-500">{t.loading}</span>
+        </div>
+      </AdminLayout>
+    );
+  }
+
+  const stats = data?.stats;
+  const avgOrder = stats && stats.todayOrders > 0 ? Math.round(stats.todayRevenue / stats.todayOrders) : 0;
+
+  const statsData = [
+    { id: 'revenue', value: stats?.todayRevenue || 0, icon: DollarSign, color: statColors.revenue },
+    { id: 'orders', value: stats?.todayOrders || 0, icon: ShoppingCart, color: statColors.orders },
+    { id: 'customers', value: stats?.totalCustomers || 0, icon: Users, color: statColors.customers },
+    { id: 'avgOrder', value: avgOrder, icon: TrendingUp, color: statColors.avgOrder },
+  ];
+
   return (
     <>
       <Head>
@@ -144,22 +207,13 @@ export default function AdminDashboard() {
       <AdminLayout title={t.title}>
         {/* Stats Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          {dashboardData.stats.map((stat) => {
-            const Icon = statIcons[stat.id as keyof typeof statIcons];
-            const colorClass = statColors[stat.id as keyof typeof statColors];
-            
+          {statsData.map((stat) => {
+            const Icon = stat.icon;
             return (
               <div key={stat.id} className="bg-white rounded-xl shadow-sm p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <div className={cn('w-12 h-12 rounded-xl flex items-center justify-center', colorClass)}>
+                  <div className={cn('w-12 h-12 rounded-xl flex items-center justify-center', stat.color)}>
                     <Icon className="w-6 h-6" />
-                  </div>
-                  <div className={cn(
-                    'flex items-center gap-1 text-sm font-medium',
-                    stat.isUp ? 'text-green-600' : 'text-red-600'
-                  )}>
-                    {stat.isUp ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
-                    {Math.abs(stat.change)}%
                   </div>
                 </div>
                 <p className="text-2xl font-bold text-gray-900 mb-1">
@@ -168,7 +222,7 @@ export default function AdminDashboard() {
                     : stat.value.toLocaleString()}
                 </p>
                 <p className="text-sm text-gray-500">
-                  {t.stats[stat.id as keyof typeof t.stats]} • {t.today}
+                  {t.stats[stat.id as keyof typeof t.stats]}
                 </p>
               </div>
             );
@@ -189,44 +243,51 @@ export default function AdminDashboard() {
               </Link>
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b bg-gray-50">
-                    <th className="text-start px-6 py-3 text-sm font-medium text-gray-500">{t.order}</th>
-                    <th className="text-start px-6 py-3 text-sm font-medium text-gray-500">{t.customer}</th>
-                    <th className="text-start px-6 py-3 text-sm font-medium text-gray-500">{t.total}</th>
-                    <th className="text-start px-6 py-3 text-sm font-medium text-gray-500">{t.status}</th>
-                    <th className="text-start px-6 py-3 text-sm font-medium text-gray-500">{t.time}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {dashboardData.recentOrders.map((order) => (
-                    <tr key={order.id} className="border-b last:border-0 hover:bg-gray-50">
-                      <td className="px-6 py-4">
-                        <Link href={`/admin/orders/${order.id}`} className="font-medium text-primary-600 hover:text-primary-700">
-                          {order.id}
-                        </Link>
-                      </td>
-                      <td className="px-6 py-4 text-gray-900">{order.customer}</td>
-                      <td className="px-6 py-4 font-medium">{formatPrice(order.total, language)}</td>
-                      <td className="px-6 py-4">
-                        <span className={cn(
-                          'px-2.5 py-1 rounded-full text-xs font-medium',
-                          statusColors[order.status]
-                        )}>
-                          {t.statuses[order.status as keyof typeof t.statuses]}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-gray-500 text-sm">
-                        <div className="flex items-center gap-1">
-                          <Clock className="w-4 h-4" />
-                          {order.time}
-                        </div>
-                      </td>
+              {data?.recentOrders && data.recentOrders.length > 0 ? (
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b bg-gray-50">
+                      <th className="text-start px-6 py-3 text-sm font-medium text-gray-500">{t.order}</th>
+                      <th className="text-start px-6 py-3 text-sm font-medium text-gray-500">{t.customer}</th>
+                      <th className="text-start px-6 py-3 text-sm font-medium text-gray-500">{t.total}</th>
+                      <th className="text-start px-6 py-3 text-sm font-medium text-gray-500">{t.status}</th>
+                      <th className="text-start px-6 py-3 text-sm font-medium text-gray-500">{t.time}</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {data.recentOrders.map((order) => (
+                      <tr key={order.id} className="border-b last:border-0 hover:bg-gray-50">
+                        <td className="px-6 py-4">
+                          <Link href={`/admin/orders/${order.id}`} className="font-medium text-primary-600 hover:text-primary-700">
+                            {order.orderNumber}
+                          </Link>
+                        </td>
+                        <td className="px-6 py-4 text-gray-900">{order.customer}</td>
+                        <td className="px-6 py-4 font-medium">{formatPrice(order.total, language)}</td>
+                        <td className="px-6 py-4">
+                          <span className={cn(
+                            'px-2.5 py-1 rounded-full text-xs font-medium',
+                            statusColors[order.status] || 'bg-gray-100 text-gray-800'
+                          )}>
+                            {t.statuses[order.status as keyof typeof t.statuses] || order.status}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-gray-500 text-sm">
+                          <div className="flex items-center gap-1">
+                            <Clock className="w-4 h-4" />
+                            {getTimeAgo(order.createdAt)}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <div className="p-8 text-center text-gray-500">
+                  <ShoppingCart className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+                  {t.noOrders}
+                </div>
+              )}
             </div>
           </div>
 
@@ -244,7 +305,7 @@ export default function AdminDashboard() {
                     <FileText className="w-5 h-5 text-yellow-600" />
                   </div>
                   <div>
-                    <p className="font-medium text-gray-900">{dashboardData.pendingMaterialLists}</p>
+                    <p className="font-medium text-gray-900">{stats?.pendingLists || 0}</p>
                     <p className="text-sm text-gray-600">{t.pendingMaterialLists}</p>
                   </div>
                 </div>
@@ -253,7 +314,7 @@ export default function AdminDashboard() {
 
               {/* Low Stock */}
               <Link
-                href="/admin/products?filter=low_stock"
+                href="/admin/products?stock=low_stock"
                 className="flex items-center justify-between p-4 bg-red-50 rounded-xl hover:bg-red-100 transition-colors"
               >
                 <div className="flex items-center gap-3">
@@ -261,7 +322,7 @@ export default function AdminDashboard() {
                     <AlertCircle className="w-5 h-5 text-red-600" />
                   </div>
                   <div>
-                    <p className="font-medium text-gray-900">{dashboardData.lowStockProducts}</p>
+                    <p className="font-medium text-gray-900">{stats?.lowStockProducts || 0}</p>
                     <p className="text-sm text-gray-600">{t.lowStockProducts}</p>
                   </div>
                 </div>
@@ -278,7 +339,7 @@ export default function AdminDashboard() {
                     <Truck className="w-5 h-5 text-blue-600" />
                   </div>
                   <div>
-                    <p className="font-medium text-gray-900">{dashboardData.pendingDeliveries}</p>
+                    <p className="font-medium text-gray-900">{stats?.todayOrders || 0}</p>
                     <p className="text-sm text-gray-600">{t.pendingDeliveries}</p>
                   </div>
                 </div>

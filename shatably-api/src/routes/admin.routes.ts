@@ -111,18 +111,56 @@ router.get('/products', async (req, res, next) => {
   try {
     const page = Math.max(1, parseInt(req.query.page as string) || 1);
     const limit = Math.min(100, parseInt(req.query.limit as string) || 20);
+    const search = req.query.search as string;
+    const categoryId = req.query.categoryId as string;
+    const stockFilter = req.query.stock as string;
     const { skip } = paginate({ page, limit });
 
+    const where: any = {};
+    if (search) {
+      where.OR = [
+        { nameAr: { contains: search, mode: 'insensitive' } },
+        { nameEn: { contains: search, mode: 'insensitive' } },
+        { sku: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+    if (categoryId && categoryId !== 'all') where.categoryId = categoryId;
+    if (stockFilter === 'in_stock') where.stock = { gt: 10 };
+    else if (stockFilter === 'low_stock') where.stock = { gt: 0, lte: 10 };
+    else if (stockFilter === 'out_of_stock') where.stock = 0;
+
     const [products, total] = await Promise.all([
-      prisma.product.findMany({ skip, take: limit, orderBy: { createdAt: 'desc' },
-        include: { category: { select: { nameAr: true, nameEn: true } }, images: { take: 1 } } }),
-      prisma.product.count(),
+      prisma.product.findMany({ where, skip, take: limit, orderBy: { createdAt: 'desc' },
+        include: { category: { select: { id: true, nameAr: true, nameEn: true } }, brand: { select: { id: true, nameAr: true, nameEn: true } }, images: true } }),
+      prisma.product.count({ where }),
     ]);
 
     res.json({ success: true, ...createPaginatedResponse(products.map((p) => ({
-      id: p.id, sku: p.sku, nameAr: p.nameAr, nameEn: p.nameEn, price: Number(p.price),
-      stock: p.stock, category: p.category, image: p.images[0]?.url, isActive: p.isActive, isFeatured: p.isFeatured,
+      id: p.id, sku: p.sku, nameAr: p.nameAr, nameEn: p.nameEn, descriptionAr: p.descriptionAr, descriptionEn: p.descriptionEn,
+      price: Number(p.price), originalPrice: p.originalPrice ? Number(p.originalPrice) : null, unit: p.unit,
+      stock: p.stock, minOrderQty: p.minOrderQty, maxOrderQty: p.maxOrderQty, weight: p.weight ? Number(p.weight) : null,
+      category: p.category, brand: p.brand, images: p.images.map(img => img.url), isActive: p.isActive, isFeatured: p.isFeatured,
+      specifications: p.specifications, createdAt: p.createdAt,
     })), total, page, limit) });
+  } catch (error) { next(error); }
+});
+
+router.get('/products/:id', async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const product = await prisma.product.findUnique({ where: { id },
+      include: { category: { select: { id: true, nameAr: true, nameEn: true } }, brand: { select: { id: true, nameAr: true, nameEn: true } }, images: true } });
+    if (!product) throw new AppError('Product not found', 404);
+
+    res.json({ success: true, data: {
+      id: product.id, sku: product.sku, nameAr: product.nameAr, nameEn: product.nameEn,
+      descriptionAr: product.descriptionAr, descriptionEn: product.descriptionEn,
+      price: Number(product.price), originalPrice: product.originalPrice ? Number(product.originalPrice) : null,
+      unit: product.unit, stock: product.stock, minOrderQty: product.minOrderQty, maxOrderQty: product.maxOrderQty,
+      weight: product.weight ? Number(product.weight) : null, categoryId: product.categoryId, brandId: product.brandId,
+      category: product.category, brand: product.brand, images: product.images.map(img => ({ id: img.id, url: img.url, alt: img.alt, isPrimary: img.isPrimary })),
+      isActive: product.isActive, isFeatured: product.isFeatured, specifications: product.specifications, createdAt: product.createdAt,
+    } });
   } catch (error) { next(error); }
 });
 
@@ -146,16 +184,69 @@ router.put('/products/:id', validateBody(productSchema.partial()), async (req, r
     const { id } = req.params;
     const { images, ...data } = req.body;
 
-    const product = await prisma.product.update({ where: { id }, data });
+    await prisma.$transaction(async (tx) => {
+      await tx.product.update({ where: { id }, data });
+      if (images) {
+        await tx.productImage.deleteMany({ where: { productId: id } });
+        await tx.productImage.createMany({ data: images.map((img: any, i: number) => ({ productId: id, url: img.url, alt: img.alt || '', isPrimary: i === 0, sortOrder: i })) });
+      }
+    });
+
+    const product = await prisma.product.findUnique({ where: { id }, include: { images: true, category: true, brand: true } });
     res.json({ success: true, data: product });
+  } catch (error) { next(error); }
+});
+
+router.patch('/products/:id/toggle', async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const product = await prisma.product.findUnique({ where: { id } });
+    if (!product) throw new AppError('Product not found', 404);
+
+    const updated = await prisma.product.update({ where: { id }, data: { isActive: !product.isActive } });
+    res.json({ success: true, data: { isActive: updated.isActive } });
   } catch (error) { next(error); }
 });
 
 router.delete('/products/:id', async (req, res, next) => {
   try {
     const { id } = req.params;
-    await prisma.product.update({ where: { id }, data: { isActive: false } });
-    res.json({ success: true, message: 'Product deactivated' });
+    await prisma.product.delete({ where: { id } });
+    res.json({ success: true, message: 'Product deleted' });
+  } catch (error) { next(error); }
+});
+
+// ============ BRANDS ============
+router.get('/brands', async (req, res, next) => {
+  try {
+    const brands = await prisma.brand.findMany({ orderBy: { nameEn: 'asc' } });
+    res.json({ success: true, data: brands.map((b) => ({ id: b.id, nameAr: b.nameAr, nameEn: b.nameEn, logo: b.logo })) });
+  } catch (error) { next(error); }
+});
+
+router.post('/brands', async (req, res, next) => {
+  try {
+    const { nameAr, nameEn, logo } = req.body;
+    const slug = slugify(nameEn);
+    const brand = await prisma.brand.create({ data: { nameAr, nameEn, slug, logo } });
+    res.status(201).json({ success: true, data: brand });
+  } catch (error) { next(error); }
+});
+
+router.put('/brands/:id', async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { nameAr, nameEn, logo } = req.body;
+    const brand = await prisma.brand.update({ where: { id }, data: { nameAr, nameEn, logo } });
+    res.json({ success: true, data: brand });
+  } catch (error) { next(error); }
+});
+
+router.delete('/brands/:id', async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    await prisma.brand.delete({ where: { id } });
+    res.json({ success: true, message: 'Brand deleted' });
   } catch (error) { next(error); }
 });
 

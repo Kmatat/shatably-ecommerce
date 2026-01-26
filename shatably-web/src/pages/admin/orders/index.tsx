@@ -1,89 +1,56 @@
 import Head from 'next/head';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Search,
   Filter,
   Download,
   Eye,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Clock,
   Truck,
   CheckCircle,
   XCircle,
   Package,
   MoreVertical,
+  Loader2,
 } from 'lucide-react';
 import AdminLayout from '@/components/AdminLayout';
 import { useLanguageStore } from '@/lib/store';
 import { formatPrice, formatDate, cn } from '@/lib/utils';
 
-// Mock orders data
-const mockOrders = [
-  {
-    id: 'SH-XYZ789',
-    customer: { name: 'محمد أحمد', phone: '01012345678' },
-    total: 4500,
-    itemsCount: 5,
-    status: 'pending',
-    paymentMethod: 'cod',
-    deliveryType: 'scheduled',
-    createdAt: '2024-01-25T10:30:00',
-  },
-  {
-    id: 'SH-ABC123',
-    customer: { name: 'أحمد علي', phone: '01098765432' },
-    total: 12300,
-    itemsCount: 12,
-    status: 'processing',
-    paymentMethod: 'card',
-    deliveryType: 'express',
-    createdAt: '2024-01-25T09:15:00',
-  },
-  {
-    id: 'SH-DEF456',
-    customer: { name: 'سارة محمود', phone: '01112223334' },
-    total: 8750,
-    itemsCount: 8,
-    status: 'in_transit',
-    paymentMethod: 'fawry',
-    deliveryType: 'scheduled',
-    createdAt: '2024-01-24T16:45:00',
-  },
-  {
-    id: 'SH-GHI012',
-    customer: { name: 'عمر حسن', phone: '01556667778' },
-    total: 3200,
-    itemsCount: 3,
-    status: 'delivered',
-    paymentMethod: 'cod',
-    deliveryType: 'scheduled',
-    createdAt: '2024-01-24T14:20:00',
-  },
-  {
-    id: 'SH-JKL345',
-    customer: { name: 'فاطمة علي', phone: '01223334445' },
-    total: 6800,
-    itemsCount: 6,
-    status: 'cancelled',
-    paymentMethod: 'wallet',
-    deliveryType: 'express',
-    createdAt: '2024-01-24T11:00:00',
-  },
-];
+interface Order {
+  id: string;
+  orderNumber: string;
+  customer: { name: string; phone: string };
+  total: number;
+  itemsCount: number;
+  status: string;
+  paymentMethod: string;
+  paymentStatus: string;
+  deliveryType: string;
+  createdAt: string;
+}
 
 type OrderStatus = 'all' | 'pending' | 'confirmed' | 'processing' | 'ready' | 'in_transit' | 'delivered' | 'cancelled';
 
 export default function AdminOrdersPage() {
   const { language } = useLanguageStore();
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<OrderStatus>('all');
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
 
   const content = {
     ar: {
       title: 'إدارة الطلبات',
-      search: 'بحث برقم الطلب أو اسم العميل...',
+      search: 'بحث برقم الطلب أو رقم العميل...',
       filter: 'تصفية',
       export: 'تصدير',
       allStatuses: 'جميع الحالات',
@@ -120,10 +87,13 @@ export default function AdminOrdersPage() {
       },
       noOrders: 'لا توجد طلبات',
       selected: 'محدد',
+      loading: 'جاري التحميل...',
+      of: 'من',
+      orders: 'طلب',
     },
     en: {
       title: 'Orders Management',
-      search: 'Search by order number or customer name...',
+      search: 'Search by order number or customer phone...',
       filter: 'Filter',
       export: 'Export',
       allStatuses: 'All Statuses',
@@ -160,10 +130,61 @@ export default function AdminOrdersPage() {
       },
       noOrders: 'No orders found',
       selected: 'selected',
+      loading: 'Loading...',
+      of: 'of',
+      orders: 'orders',
     },
   };
 
   const t = content[language];
+
+  useEffect(() => {
+    fetchOrders();
+  }, [page, searchQuery, statusFilter]);
+
+  const fetchOrders = async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: '20',
+      });
+      if (searchQuery) params.append('search', searchQuery);
+      if (statusFilter !== 'all') params.append('status', statusFilter);
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/orders?${params}`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setOrders(data.data || []);
+        setTotalPages(data.pagination?.totalPages || 1);
+        setTotal(data.pagination?.total || 0);
+      }
+    } catch (error) {
+      console.error('Failed to fetch orders:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleStatusChange = async (orderId: string, newStatus: string) => {
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/orders/${orderId}/status`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      if (response.ok) {
+        fetchOrders();
+      }
+    } catch (error) {
+      console.error('Failed to update order status:', error);
+    }
+  };
 
   const statusColors: Record<string, string> = {
     pending: 'bg-yellow-100 text-yellow-800',
@@ -175,19 +196,11 @@ export default function AdminOrdersPage() {
     cancelled: 'bg-red-100 text-red-800',
   };
 
-  const filteredOrders = mockOrders.filter((order) => {
-    const matchesSearch = 
-      order.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      order.customer.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
-
   const toggleSelectAll = () => {
-    if (selectedOrders.length === filteredOrders.length) {
+    if (selectedOrders.length === orders.length) {
       setSelectedOrders([]);
     } else {
-      setSelectedOrders(filteredOrders.map((o) => o.id));
+      setSelectedOrders(orders.map((o) => o.id));
     }
   };
 
@@ -215,7 +228,7 @@ export default function AdminOrdersPage() {
               <input
                 type="text"
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
                 placeholder={t.search}
                 className="w-full ps-10 pe-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
               />
@@ -225,7 +238,7 @@ export default function AdminOrdersPage() {
             <div className="relative">
               <select
                 value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value as OrderStatus)}
+                onChange={(e) => { setStatusFilter(e.target.value as OrderStatus); setPage(1); }}
                 className="appearance-none px-4 py-2.5 pe-10 border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary-500"
               >
                 <option value="all">{t.allStatuses}</option>
@@ -261,118 +274,157 @@ export default function AdminOrdersPage() {
 
         {/* Orders Table */}
         <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b bg-gray-50">
-                  <th className="px-4 py-3">
-                    <input
-                      type="checkbox"
-                      checked={selectedOrders.length === filteredOrders.length && filteredOrders.length > 0}
-                      onChange={toggleSelectAll}
-                      className="w-4 h-4 rounded border-gray-300 text-primary-600"
-                    />
-                  </th>
-                  <th className="text-start px-4 py-3 text-sm font-medium text-gray-500">{t.orderNumber}</th>
-                  <th className="text-start px-4 py-3 text-sm font-medium text-gray-500">{t.customer}</th>
-                  <th className="text-start px-4 py-3 text-sm font-medium text-gray-500">{t.total}</th>
-                  <th className="text-start px-4 py-3 text-sm font-medium text-gray-500">{t.items}</th>
-                  <th className="text-start px-4 py-3 text-sm font-medium text-gray-500">{t.status}</th>
-                  <th className="text-start px-4 py-3 text-sm font-medium text-gray-500">{t.payment}</th>
-                  <th className="text-start px-4 py-3 text-sm font-medium text-gray-500">{t.delivery}</th>
-                  <th className="text-start px-4 py-3 text-sm font-medium text-gray-500">{t.date}</th>
-                  <th className="text-start px-4 py-3 text-sm font-medium text-gray-500">{t.actions}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredOrders.length === 0 ? (
-                  <tr>
-                    <td colSpan={10} className="px-4 py-12 text-center text-gray-500">
-                      <Package className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                      {t.noOrders}
-                    </td>
-                  </tr>
-                ) : (
-                  filteredOrders.map((order) => (
-                    <tr key={order.id} className="border-b last:border-0 hover:bg-gray-50">
-                      <td className="px-4 py-4">
+          {loading ? (
+            <div className="p-12 text-center">
+              <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary-500" />
+              <p className="mt-2 text-gray-500">{t.loading}</p>
+            </div>
+          ) : (
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b bg-gray-50">
+                      <th className="px-4 py-3">
                         <input
                           type="checkbox"
-                          checked={selectedOrders.includes(order.id)}
-                          onChange={() => toggleSelectOrder(order.id)}
+                          checked={selectedOrders.length === orders.length && orders.length > 0}
+                          onChange={toggleSelectAll}
                           className="w-4 h-4 rounded border-gray-300 text-primary-600"
                         />
-                      </td>
-                      <td className="px-4 py-4">
-                        <Link
-                          href={`/admin/orders/${order.id}`}
-                          className="font-medium text-primary-600 hover:text-primary-700"
-                        >
-                          {order.id}
-                        </Link>
-                      </td>
-                      <td className="px-4 py-4">
-                        <div>
-                          <p className="font-medium text-gray-900">{order.customer.name}</p>
-                          <p className="text-sm text-gray-500">{order.customer.phone}</p>
-                        </div>
-                      </td>
-                      <td className="px-4 py-4 font-medium">
-                        {formatPrice(order.total, language)}
-                      </td>
-                      <td className="px-4 py-4 text-gray-600">
-                        {order.itemsCount}
-                      </td>
-                      <td className="px-4 py-4">
-                        <span className={cn(
-                          'px-2.5 py-1 rounded-full text-xs font-medium',
-                          statusColors[order.status]
-                        )}>
-                          {t.statuses[order.status as keyof typeof t.statuses]}
-                        </span>
-                      </td>
-                      <td className="px-4 py-4 text-sm text-gray-600">
-                        {t.paymentMethods[order.paymentMethod as keyof typeof t.paymentMethods]}
-                      </td>
-                      <td className="px-4 py-4">
-                        <span className={cn(
-                          'px-2 py-0.5 rounded text-xs font-medium',
-                          order.deliveryType === 'express' ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-700'
-                        )}>
-                          {t.deliveryTypes[order.deliveryType as keyof typeof t.deliveryTypes]}
-                        </span>
-                      </td>
-                      <td className="px-4 py-4 text-sm text-gray-500">
-                        {formatDate(order.createdAt, language)}
-                      </td>
-                      <td className="px-4 py-4">
-                        <div className="relative group">
-                          <button className="p-2 hover:bg-gray-100 rounded-lg">
-                            <MoreVertical className="w-4 h-4 text-gray-500" />
-                          </button>
-                          <div className="absolute top-full end-0 mt-1 w-40 bg-white rounded-lg shadow-lg border opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
-                            <div className="py-1">
-                              <Link
-                                href={`/admin/orders/${order.id}`}
-                                className="flex items-center gap-2 px-4 py-2 text-sm hover:bg-gray-50"
-                              >
-                                <Eye className="w-4 h-4" />
-                                {t.viewDetails}
-                              </Link>
-                              <button className="w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-gray-50">
-                                <Package className="w-4 h-4" />
-                                {t.updateStatus}
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      </td>
+                      </th>
+                      <th className="text-start px-4 py-3 text-sm font-medium text-gray-500">{t.orderNumber}</th>
+                      <th className="text-start px-4 py-3 text-sm font-medium text-gray-500">{t.customer}</th>
+                      <th className="text-start px-4 py-3 text-sm font-medium text-gray-500">{t.total}</th>
+                      <th className="text-start px-4 py-3 text-sm font-medium text-gray-500">{t.items}</th>
+                      <th className="text-start px-4 py-3 text-sm font-medium text-gray-500">{t.status}</th>
+                      <th className="text-start px-4 py-3 text-sm font-medium text-gray-500">{t.payment}</th>
+                      <th className="text-start px-4 py-3 text-sm font-medium text-gray-500">{t.delivery}</th>
+                      <th className="text-start px-4 py-3 text-sm font-medium text-gray-500">{t.date}</th>
+                      <th className="text-start px-4 py-3 text-sm font-medium text-gray-500">{t.actions}</th>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                  </thead>
+                  <tbody>
+                    {orders.length === 0 ? (
+                      <tr>
+                        <td colSpan={10} className="px-4 py-12 text-center text-gray-500">
+                          <Package className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                          {t.noOrders}
+                        </td>
+                      </tr>
+                    ) : (
+                      orders.map((order) => (
+                        <tr key={order.id} className="border-b last:border-0 hover:bg-gray-50">
+                          <td className="px-4 py-4">
+                            <input
+                              type="checkbox"
+                              checked={selectedOrders.includes(order.id)}
+                              onChange={() => toggleSelectOrder(order.id)}
+                              className="w-4 h-4 rounded border-gray-300 text-primary-600"
+                            />
+                          </td>
+                          <td className="px-4 py-4">
+                            <Link
+                              href={`/admin/orders/${order.id}`}
+                              className="font-medium text-primary-600 hover:text-primary-700"
+                            >
+                              {order.orderNumber}
+                            </Link>
+                          </td>
+                          <td className="px-4 py-4">
+                            <div>
+                              <p className="font-medium text-gray-900">{order.customer.name || '-'}</p>
+                              <p className="text-sm text-gray-500">{order.customer.phone}</p>
+                            </div>
+                          </td>
+                          <td className="px-4 py-4 font-medium">
+                            {formatPrice(order.total, language)}
+                          </td>
+                          <td className="px-4 py-4 text-gray-600">
+                            {order.itemsCount}
+                          </td>
+                          <td className="px-4 py-4">
+                            <select
+                              value={order.status}
+                              onChange={(e) => handleStatusChange(order.id, e.target.value)}
+                              className={cn(
+                                'px-2.5 py-1 rounded-full text-xs font-medium border-0 cursor-pointer',
+                                statusColors[order.status] || 'bg-gray-100 text-gray-800'
+                              )}
+                            >
+                              {Object.entries(t.statuses).map(([key, label]) => (
+                                <option key={key} value={key}>{label}</option>
+                              ))}
+                            </select>
+                          </td>
+                          <td className="px-4 py-4 text-sm text-gray-600">
+                            {t.paymentMethods[order.paymentMethod as keyof typeof t.paymentMethods] || order.paymentMethod}
+                          </td>
+                          <td className="px-4 py-4">
+                            <span className={cn(
+                              'px-2 py-0.5 rounded text-xs font-medium',
+                              order.deliveryType === 'express' ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-700'
+                            )}>
+                              {t.deliveryTypes[order.deliveryType as keyof typeof t.deliveryTypes] || order.deliveryType}
+                            </span>
+                          </td>
+                          <td className="px-4 py-4 text-sm text-gray-500">
+                            {formatDate(order.createdAt, language)}
+                          </td>
+                          <td className="px-4 py-4">
+                            <div className="relative group">
+                              <button className="p-2 hover:bg-gray-100 rounded-lg">
+                                <MoreVertical className="w-4 h-4 text-gray-500" />
+                              </button>
+                              <div className="absolute top-full end-0 mt-1 w-40 bg-white rounded-lg shadow-lg border opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
+                                <div className="py-1">
+                                  <Link
+                                    href={`/admin/orders/${order.id}`}
+                                    className="flex items-center gap-2 px-4 py-2 text-sm hover:bg-gray-50"
+                                  >
+                                    <Eye className="w-4 h-4" />
+                                    {t.viewDetails}
+                                  </Link>
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="px-4 py-3 border-t flex items-center justify-between">
+                  <p className="text-sm text-gray-500">
+                    {total} {t.orders}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      disabled={page === 1}
+                      className="p-2 border rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {language === 'ar' ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+                    </button>
+                    <span className="text-sm text-gray-600">
+                      {page} {t.of} {totalPages}
+                    </span>
+                    <button
+                      onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                      disabled={page === totalPages}
+                      className="p-2 border rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {language === 'ar' ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
         </div>
       </AdminLayout>
     </>
