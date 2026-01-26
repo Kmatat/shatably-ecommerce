@@ -23,7 +23,69 @@ class ConsoleSmsProvider implements SmsProvider {
   }
 }
 
-// Unifonic provider (recommended for Egypt)
+// SMS Misr provider (Egypt)
+class SmsMisrProvider implements SmsProvider {
+  private username: string;
+  private password: string;
+  private senderToken: string;
+  private templateToken: string;
+  private environment: string;
+
+  constructor() {
+    this.username = process.env.SMSMISR_USERNAME || '';
+    this.password = process.env.SMSMISR_PASSWORD || '';
+    this.senderToken = process.env.SMSMISR_SENDER_TOKEN || '';
+    this.templateToken = process.env.SMSMISR_TEMPLATE_TOKEN || '';
+    this.environment = process.env.SMSMISR_ENVIRONMENT || '2'; // 1=Live, 2=Test
+  }
+
+  async sendSms(phone: string, message: string): Promise<boolean> {
+    if (!this.username || !this.password) {
+      console.warn('SMS Misr not configured, falling back to console');
+      return new ConsoleSmsProvider().sendSms(phone, message);
+    }
+
+    try {
+      // Format Egyptian phone number (remove leading 0, use format 2011XXXXXXX)
+      let formattedPhone = phone.replace(/\D/g, '');
+      if (formattedPhone.startsWith('20')) {
+        formattedPhone = formattedPhone.substring(2); // Remove country code for SMS Misr
+      }
+      if (formattedPhone.startsWith('0')) {
+        formattedPhone = formattedPhone.substring(1); // Remove leading 0
+      }
+
+      const params = new URLSearchParams({
+        environment: this.environment,
+        username: this.username,
+        password: this.password,
+        sender: this.senderToken,
+        mobile: formattedPhone,
+        template: this.templateToken,
+        otp: message.substring(0, 10), // SMS Misr OTP max 10 chars
+      });
+
+      const response = await fetch(`https://smsmisr.com/api/OTP/?${params.toString()}`, {
+        method: 'POST',
+      });
+
+      const data = await response.json();
+
+      if (data.code === '1901' || data.code === 1901) {
+        console.log(`✅ SMS sent to ${phone} via SMS Misr`);
+        return true;
+      } else {
+        console.error('❌ SMS Misr failed:', data);
+        return false;
+      }
+    } catch (error) {
+      console.error('❌ SMS Misr error:', error);
+      return false;
+    }
+  }
+}
+
+// Unifonic provider (alternative for Egypt)
 class UnifonicSmsProvider implements SmsProvider {
   private appSid: string;
   private senderId: string;
@@ -63,7 +125,7 @@ class UnifonicSmsProvider implements SmsProvider {
       });
 
       const data = await response.json();
-      
+
       if (data.success === 'true' || data.Status === 'Sent') {
         console.log(`✅ SMS sent to ${phone}`);
         return true;
@@ -83,6 +145,8 @@ const getSmsProvider = (): SmsProvider => {
   const provider = process.env.SMS_PROVIDER || 'console';
 
   switch (provider.toLowerCase()) {
+    case 'smsmisr':
+      return new SmsMisrProvider();
     case 'unifonic':
       return new UnifonicSmsProvider();
     case 'console':
