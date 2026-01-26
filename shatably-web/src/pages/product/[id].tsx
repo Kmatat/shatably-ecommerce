@@ -2,7 +2,7 @@ import { useRouter } from 'next/router';
 import Head from 'next/head';
 import Image from 'next/image';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   ChevronLeft,
   ChevronRight,
@@ -16,11 +16,42 @@ import {
   RotateCcw,
   Star,
   Check,
+  Loader2,
 } from 'lucide-react';
 import { Header, Footer, ProductCard } from '@/components';
 import { useCartStore, useLanguageStore, useUIStore } from '@/lib/store';
-import { getProductById, products, getCategoryById } from '@/lib/data';
 import { formatPrice, cn, getUnitLabel } from '@/lib/utils';
+
+interface ProductImage {
+  id: string;
+  url: string;
+  alt: string | null;
+  isPrimary: boolean;
+}
+
+interface Product {
+  id: string;
+  nameAr: string;
+  nameEn: string;
+  descriptionAr: string | null;
+  descriptionEn: string | null;
+  price: number;
+  originalPrice: number | null;
+  unit: string;
+  stock: number;
+  sku: string;
+  images: ProductImage[];
+  rating: number | null;
+  reviewCount: number;
+  specifications: Record<string, string> | null;
+  categoryId: string;
+  category?: {
+    id: string;
+    nameAr: string;
+    nameEn: string;
+    slug: string;
+  };
+}
 
 export default function ProductPage() {
   const router = useRouter();
@@ -29,52 +60,46 @@ export default function ProductPage() {
   const { addItem } = useCartStore();
   const { showNotification } = useUIStore();
 
+  const [product, setProduct] = useState<Product | null>(null);
+  const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
   const [quantity, setQuantity] = useState(1);
   const [selectedImage, setSelectedImage] = useState(0);
   const [activeTab, setActiveTab] = useState<'description' | 'specs' | 'reviews'>('description');
 
-  const product = getProductById(id as string);
+  useEffect(() => {
+    if (!id) return;
 
-  if (!product) {
-    return (
-      <>
-        <Header />
-        <div className="container-custom py-20 text-center">
-          <h1 className="text-2xl font-bold mb-4">
-            {language === 'ar' ? 'المنتج غير موجود' : 'Product not found'}
-          </h1>
-          <Link href="/" className="btn-primary">
-            {language === 'ar' ? 'العودة للرئيسية' : 'Back to Home'}
-          </Link>
-        </div>
-        <Footer />
-      </>
-    );
-  }
+    const fetchProduct = async () => {
+      setLoading(true);
+      try {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/products/${id}`);
+        if (response.ok) {
+          const data = await response.json();
+          setProduct(data.data);
 
-  const name = language === 'ar' ? product.nameAr : product.nameEn;
-  const description = language === 'ar' ? product.descriptionAr : product.descriptionEn;
-  const category = getCategoryById(product.categoryId);
-  const categoryName = category ? (language === 'ar' ? category.nameAr : category.nameEn) : '';
+          // Fetch related products from same category
+          if (data.data?.categoryId) {
+            const relatedResponse = await fetch(
+              `${process.env.NEXT_PUBLIC_API_URL}/products?categoryId=${data.data.categoryId}&limit=5`
+            );
+            if (relatedResponse.ok) {
+              const relatedData = await relatedResponse.json();
+              setRelatedProducts(
+                (relatedData.data || []).filter((p: Product) => p.id !== id).slice(0, 5)
+              );
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch product:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const hasDiscount = product.originalPrice && product.originalPrice > product.price;
-  const discountPercent = hasDiscount
-    ? Math.round(((product.originalPrice! - product.price) / product.originalPrice!) * 100)
-    : 0;
-
-  const handleAddToCart = () => {
-    for (let i = 0; i < quantity; i++) {
-      addItem(product);
-    }
-    showNotification(
-      language === 'ar' ? 'تمت الإضافة للسلة' : 'Added to cart',
-      'success'
-    );
-  };
-
-  const relatedProducts = products
-    .filter((p) => p.categoryId === product.categoryId && p.id !== product.id)
-    .slice(0, 5);
+    fetchProduct();
+  }, [id]);
 
   const content = {
     ar: {
@@ -96,6 +121,13 @@ export default function ProductPage() {
       related: 'منتجات مشابهة',
       share: 'مشاركة',
       wishlist: 'أضف للمفضلة',
+      notFound: 'المنتج غير موجود',
+      backHome: 'العودة للرئيسية',
+      loading: 'جاري التحميل...',
+      home: 'الرئيسية',
+      available: 'متاح',
+      reviews_label: 'تقييم',
+      noReviews: 'لا توجد تقييمات بعد',
     },
     en: {
       addToCart: 'Add to Cart',
@@ -116,16 +148,104 @@ export default function ProductPage() {
       related: 'Related Products',
       share: 'Share',
       wishlist: 'Add to Wishlist',
+      notFound: 'Product not found',
+      backHome: 'Back to Home',
+      loading: 'Loading...',
+      home: 'Home',
+      available: 'available',
+      reviews_label: 'reviews',
+      noReviews: 'No reviews yet',
     },
   };
 
   const t = content[language];
 
+  if (loading) {
+    return (
+      <>
+        <Header />
+        <div className="container-custom py-20 flex items-center justify-center">
+          <Loader2 className="w-8 h-8 animate-spin text-primary-500" />
+          <span className="ms-2">{t.loading}</span>
+        </div>
+        <Footer />
+      </>
+    );
+  }
+
+  if (!product) {
+    return (
+      <>
+        <Header />
+        <div className="container-custom py-20 text-center">
+          <h1 className="text-2xl font-bold mb-4">{t.notFound}</h1>
+          <Link href="/" className="btn-primary">
+            {t.backHome}
+          </Link>
+        </div>
+        <Footer />
+      </>
+    );
+  }
+
+  const name = language === 'ar' ? product.nameAr : product.nameEn;
+  const description = language === 'ar' ? product.descriptionAr : product.descriptionEn;
+  const categoryName = product.category
+    ? (language === 'ar' ? product.category.nameAr : product.category.nameEn)
+    : '';
+
+  const hasDiscount = product.originalPrice && product.originalPrice > product.price;
+  const discountPercent = hasDiscount
+    ? Math.round(((product.originalPrice! - product.price) / product.originalPrice!) * 100)
+    : 0;
+
+  const handleAddToCart = () => {
+    // Convert images to URL strings for cart
+    const imageUrls = product.images.map((img) =>
+      typeof img === 'string' ? img : img.url
+    );
+    const cartProduct = {
+      id: product.id,
+      nameAr: product.nameAr,
+      nameEn: product.nameEn,
+      price: product.price,
+      originalPrice: product.originalPrice,
+      images: imageUrls,
+      unit: product.unit,
+      stock: product.stock,
+      categoryId: product.categoryId,
+      sku: product.sku,
+    };
+    for (let i = 0; i < quantity; i++) {
+      addItem(cartProduct as any);
+    }
+    showNotification(
+      language === 'ar' ? 'تمت الإضافة للسلة' : 'Added to cart',
+      'success'
+    );
+  };
+
+  // Transform related products for ProductCard
+  const transformedRelated = relatedProducts.map((p) => ({
+    id: p.id,
+    nameAr: p.nameAr,
+    nameEn: p.nameEn,
+    price: p.price,
+    originalPrice: p.originalPrice,
+    images: p.images,
+    unit: p.unit,
+    stock: p.stock,
+    categoryId: p.categoryId,
+    sku: p.sku,
+    rating: p.rating,
+    reviewCount: p.reviewCount,
+  }));
+
   return (
     <>
       <Head>
         <title>{name} | {language === 'ar' ? 'شطابلي' : 'Shatably'}</title>
-        <meta name="description" content={description} />
+        <meta name="description" content={description || ''} />
       </Head>
 
       <Header />
@@ -136,13 +256,20 @@ export default function ProductPage() {
           <div className="container-custom py-3">
             <nav className="flex items-center gap-2 text-sm text-gray-500">
               <Link href="/" className="hover:text-primary-600">
-                {language === 'ar' ? 'الرئيسية' : 'Home'}
+                {t.home}
               </Link>
               <span>/</span>
-              <Link href={`/category/${product.categoryId}`} className="hover:text-primary-600">
-                {categoryName}
-              </Link>
-              <span>/</span>
+              {product.category && (
+                <>
+                  <Link
+                    href={`/category/${product.category.slug || product.categoryId}`}
+                    className="hover:text-primary-600"
+                  >
+                    {categoryName}
+                  </Link>
+                  <span>/</span>
+                </>
+              )}
               <span className="text-gray-900">{name}</span>
             </nav>
           </div>
@@ -155,20 +282,26 @@ export default function ProductPage() {
               {/* Images */}
               <div>
                 <div className="relative aspect-square rounded-xl overflow-hidden bg-gray-100 mb-4">
-                  <Image
-                    src={product.images[selectedImage]}
-                    alt={name}
-                    fill
-                    className="object-cover"
-                    priority
-                  />
+                  {product.images && product.images.length > 0 ? (
+                    <Image
+                      src={product.images[selectedImage]?.url || product.images[selectedImage]}
+                      alt={name}
+                      fill
+                      className="object-cover"
+                      priority
+                    />
+                  ) : (
+                    <div className="flex items-center justify-center h-full text-gray-400">
+                      No image
+                    </div>
+                  )}
                   {hasDiscount && (
                     <span className="absolute top-4 start-4 bg-red-500 text-white px-3 py-1 rounded-full font-medium">
                       -{discountPercent}%
                     </span>
                   )}
                 </div>
-                {product.images.length > 1 && (
+                {product.images && product.images.length > 1 && (
                   <div className="flex gap-2 overflow-x-auto pb-2">
                     {product.images.map((img, index) => (
                       <button
@@ -179,7 +312,7 @@ export default function ProductPage() {
                           selectedImage === index ? 'border-primary-500' : 'border-transparent'
                         )}
                       >
-                        <Image src={img} alt="" fill className="object-cover" />
+                        <Image src={typeof img === 'string' ? img : img.url} alt="" fill className="object-cover" />
                       </button>
                     ))}
                   </div>
@@ -209,7 +342,7 @@ export default function ProductPage() {
                         ))}
                       </div>
                       <span className="text-gray-600">
-                        {product.rating} ({product.reviewCount} {language === 'ar' ? 'تقييم' : 'reviews'})
+                        {product.rating} ({product.reviewCount} {t.reviews_label})
                       </span>
                     </div>
                   )}
@@ -237,7 +370,7 @@ export default function ProductPage() {
                   {product.stock > 0 ? (
                     <span className="inline-flex items-center gap-2 text-green-600">
                       <Check className="w-5 h-5" />
-                      {t.inStock} ({product.stock} {language === 'ar' ? 'متاح' : 'available'})
+                      {t.inStock} ({product.stock} {t.available})
                     </span>
                   ) : (
                     <span className="text-red-600">{t.outOfStock}</span>
@@ -348,7 +481,7 @@ export default function ProductPage() {
               <div className="py-6">
                 {activeTab === 'description' && (
                   <div className="prose max-w-none">
-                    <p className="text-gray-600 leading-relaxed">{description}</p>
+                    <p className="text-gray-600 leading-relaxed">{description || (language === 'ar' ? 'لا يوجد وصف' : 'No description available')}</p>
                   </div>
                 )}
 
@@ -364,21 +497,19 @@ export default function ProductPage() {
                 )}
 
                 {activeTab === 'reviews' && (
-                  <p className="text-gray-500">
-                    {language === 'ar' ? 'لا توجد تقييمات بعد' : 'No reviews yet'}
-                  </p>
+                  <p className="text-gray-500">{t.noReviews}</p>
                 )}
               </div>
             </div>
           </div>
 
           {/* Related Products */}
-          {relatedProducts.length > 0 && (
+          {transformedRelated.length > 0 && (
             <div className="mt-12">
               <h2 className="text-2xl font-bold text-gray-900 mb-6">{t.related}</h2>
               <div className="product-grid">
-                {relatedProducts.map((p) => (
-                  <ProductCard key={p.id} product={p} />
+                {transformedRelated.map((p) => (
+                  <ProductCard key={p.id} product={p as any} />
                 ))}
               </div>
             </div>

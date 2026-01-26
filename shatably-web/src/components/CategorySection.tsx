@@ -1,15 +1,51 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { useLanguageStore } from '@/lib/store';
-import { categories } from '@/lib/data';
 import { cn } from '@/lib/utils';
+
+interface Category {
+  id: string;
+  nameAr: string;
+  nameEn: string;
+  slug: string;
+  icon: string | null;
+  image: string | null;
+  productCount: number;
+  children: {
+    id: string;
+    nameAr: string;
+    nameEn: string;
+    slug: string;
+    icon: string | null;
+    productCount: number;
+  }[];
+}
 
 export default function CategorySection() {
   const { language } = useLanguageStore();
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/categories`);
+        if (response.ok) {
+          const data = await response.json();
+          setCategories(data.data || []);
+        }
+      } catch (error) {
+        console.error('Failed to fetch categories:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchCategories();
+  }, []);
 
   const title = language === 'ar' ? 'تصفح حسب الفئة' : 'Browse by Category';
 
@@ -35,35 +71,49 @@ export default function CategorySection() {
         </div>
 
         {/* Category grid */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-          {categories.map((category) => (
-            <Link
-              key={category.id}
-              href={`/category/${category.id}`}
-              className="group"
-            >
-              <div className="card p-4 text-center hover:shadow-lg hover:border-primary-200 transition-all">
-                {/* Icon/Image */}
-                <div className="w-16 h-16 mx-auto mb-4 bg-primary-50 rounded-2xl flex items-center justify-center group-hover:bg-primary-100 transition-colors">
-                  <span className="text-3xl">{category.icon}</span>
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-8 h-8 animate-spin text-primary-500" />
+          </div>
+        ) : categories.length > 0 ? (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            {categories.map((category) => (
+              <Link
+                key={category.id}
+                href={`/category/${category.slug || category.id}`}
+                className="group"
+              >
+                <div className="card p-4 text-center hover:shadow-lg hover:border-primary-200 transition-all">
+                  {/* Icon/Image */}
+                  <div className="w-16 h-16 mx-auto mb-4 bg-primary-50 rounded-2xl flex items-center justify-center group-hover:bg-primary-100 transition-colors overflow-hidden">
+                    {category.icon ? (
+                      <span className="text-3xl">{category.icon}</span>
+                    ) : (
+                      <span className="text-3xl">📦</span>
+                    )}
+                  </div>
+
+                  {/* Name */}
+                  <h3 className="font-semibold text-gray-900 mb-1">
+                    {language === 'ar' ? category.nameAr : category.nameEn}
+                  </h3>
+
+                  {/* Subcategories count */}
+                  {category.children && category.children.length > 0 && (
+                    <p className="text-sm text-gray-500">
+                      {category.children.length}{' '}
+                      {language === 'ar' ? 'فئة فرعية' : 'subcategories'}
+                    </p>
+                  )}
                 </div>
-                
-                {/* Name */}
-                <h3 className="font-semibold text-gray-900 mb-1">
-                  {language === 'ar' ? category.nameAr : category.nameEn}
-                </h3>
-                
-                {/* Subcategories count */}
-                {category.children && (
-                  <p className="text-sm text-gray-500">
-                    {category.children.length}{' '}
-                    {language === 'ar' ? 'فئة فرعية' : 'subcategories'}
-                  </p>
-                )}
-              </div>
-            </Link>
-          ))}
-        </div>
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-12 text-gray-500">
+            {language === 'ar' ? 'لا توجد فئات' : 'No categories available'}
+          </div>
+        )}
       </div>
     </section>
   );

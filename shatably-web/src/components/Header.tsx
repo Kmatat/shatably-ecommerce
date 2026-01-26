@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useTranslation } from 'react-i18next';
 import {
@@ -17,12 +17,40 @@ import {
 } from 'lucide-react';
 import { useCartStore, useAuthStore, useUIStore, useLanguageStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
-import { categories } from '@/lib/data';
+
+interface Category {
+  id: string;
+  nameAr: string;
+  nameEn: string;
+  slug: string;
+  children?: {
+    id: string;
+    nameAr: string;
+    nameEn: string;
+    slug: string;
+  }[];
+}
 
 export default function Header() {
   const { t, i18n } = useTranslation();
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [categories, setCategories] = useState<Category[]>([]);
+
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/categories`);
+        if (response.ok) {
+          const data = await response.json();
+          setCategories(data.data || []);
+        }
+      } catch (error) {
+        console.error('Failed to fetch categories:', error);
+      }
+    };
+    fetchCategories();
+  }, []);
   
   const { getItemCount } = useCartStore();
   const { isAuthenticated, user } = useAuthStore();
@@ -215,7 +243,7 @@ export default function Header() {
             {categories.slice(0, 6).map((category) => (
               <li key={category.id} className="relative group">
                 <Link
-                  href={`/category/${category.id}`}
+                  href={`/category/${category.slug || category.id}`}
                   className="flex items-center gap-1 px-4 py-3 text-gray-700 hover:text-primary-600 hover:bg-gray-100"
                 >
                   <span>{getLocalizedName(category)}</span>
@@ -229,7 +257,7 @@ export default function Header() {
                       {category.children.map((sub) => (
                         <Link
                           key={sub.id}
-                          href={`/category/${sub.id}`}
+                          href={`/category/${sub.slug || sub.id}`}
                           className="block px-4 py-2 hover:bg-gray-50 hover:text-primary-600"
                         >
                           {getLocalizedName(sub)}

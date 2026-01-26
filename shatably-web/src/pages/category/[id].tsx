@@ -1,7 +1,7 @@
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import Link from 'next/link';
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   ChevronDown,
   Filter,
@@ -9,12 +9,47 @@ import {
   List,
   X,
   SlidersHorizontal,
+  Loader2,
 } from 'lucide-react';
 import { Header, Footer, ProductCard } from '@/components';
 import { useLanguageStore } from '@/lib/store';
-import { categories, products, brands, getCategoryById, getProductsByCategory } from '@/lib/data';
 import { cn, formatPrice } from '@/lib/utils';
-import type { Product } from '@/types';
+
+interface Category {
+  id: string;
+  nameAr: string;
+  nameEn: string;
+  slug: string;
+  children?: {
+    id: string;
+    nameAr: string;
+    nameEn: string;
+    slug: string;
+  }[];
+}
+
+interface Brand {
+  id: string;
+  nameAr: string;
+  nameEn: string;
+}
+
+interface Product {
+  id: string;
+  nameAr: string;
+  nameEn: string;
+  price: number;
+  originalPrice: number | null;
+  images: string[];
+  unit: string;
+  stock: number;
+  categoryId: string;
+  sku: string;
+  rating: number | null;
+  reviewCount: number;
+  brandId: string | null;
+  createdAt: string;
+}
 
 type SortOption = 'newest' | 'price_low' | 'price_high' | 'popular' | 'rating';
 type ViewMode = 'grid' | 'list';
@@ -24,6 +59,10 @@ export default function CategoryPage() {
   const { id } = router.query;
   const { language } = useLanguageStore();
 
+  const [loading, setLoading] = useState(true);
+  const [category, setCategory] = useState<Category | null>(null);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [brands, setBrands] = useState<Brand[]>([]);
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [sortBy, setSortBy] = useState<SortOption>('popular');
   const [showFilters, setShowFilters] = useState(false);
@@ -31,26 +70,49 @@ export default function CategoryPage() {
   const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
   const [inStockOnly, setInStockOnly] = useState(false);
 
-  const category = getCategoryById(id as string);
-  const categoryName = category ? (language === 'ar' ? category.nameAr : category.nameEn) : '';
+  useEffect(() => {
+    if (!id) return;
 
-  // Get products for this category
-  const categoryProducts = useMemo(() => {
-    if (!id) return products;
-    
-    // Get products from this category and all subcategories
-    const categoryIds = [id as string];
-    const cat = categories.find((c) => c.id === id);
-    if (cat?.children) {
-      categoryIds.push(...cat.children.map((c) => c.id));
-    }
-    
-    return products.filter((p) => categoryIds.includes(p.categoryId));
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        // Fetch category details
+        const categoryResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/categories/${id}`);
+        if (categoryResponse.ok) {
+          const categoryData = await categoryResponse.json();
+          setCategory(categoryData.data);
+        }
+
+        // Fetch products for this category
+        const productsResponse = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/products?categoryId=${id}&limit=100`
+        );
+        if (productsResponse.ok) {
+          const productsData = await productsResponse.json();
+          setProducts(productsData.data || []);
+        }
+
+        // Fetch brands for filtering
+        const brandsResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/brands`);
+        if (brandsResponse.ok) {
+          const brandsData = await brandsResponse.json();
+          setBrands(brandsData.data || []);
+        }
+      } catch (error) {
+        console.error('Failed to fetch data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
   }, [id]);
+
+  const categoryName = category ? (language === 'ar' ? category.nameAr : category.nameEn) : '';
 
   // Apply filters and sorting
   const filteredProducts = useMemo(() => {
-    let filtered = [...categoryProducts];
+    let filtered = [...products];
 
     // Price filter
     filtered = filtered.filter(
@@ -87,7 +149,7 @@ export default function CategoryPage() {
     }
 
     return filtered;
-  }, [categoryProducts, priceRange, selectedBrands, inStockOnly, sortBy]);
+  }, [products, priceRange, selectedBrands, inStockOnly, sortBy]);
 
   const content = {
     ar: {
@@ -109,6 +171,9 @@ export default function CategoryPage() {
       results: 'نتيجة',
       noResults: 'لا توجد منتجات',
       noResultsDesc: 'جرب تغيير معايير البحث',
+      home: 'الرئيسية',
+      loading: 'جاري التحميل...',
+      apply: 'تطبيق',
     },
     en: {
       allProducts: 'All Products',
@@ -129,6 +194,9 @@ export default function CategoryPage() {
       results: 'results',
       noResults: 'No products found',
       noResultsDesc: 'Try changing your search criteria',
+      home: 'Home',
+      loading: 'Loading...',
+      apply: 'Apply',
     },
   };
 
@@ -151,6 +219,19 @@ export default function CategoryPage() {
 
   const hasActiveFilters = priceRange[0] > 0 || priceRange[1] < 50000 || selectedBrands.length > 0 || inStockOnly;
 
+  if (loading) {
+    return (
+      <>
+        <Header />
+        <div className="container-custom py-20 flex items-center justify-center">
+          <Loader2 className="w-8 h-8 animate-spin text-primary-500" />
+          <span className="ms-2">{t.loading}</span>
+        </div>
+        <Footer />
+      </>
+    );
+  }
+
   return (
     <>
       <Head>
@@ -165,7 +246,7 @@ export default function CategoryPage() {
           <div className="container-custom py-3">
             <nav className="flex items-center gap-2 text-sm text-gray-500">
               <Link href="/" className="hover:text-primary-600">
-                {language === 'ar' ? 'الرئيسية' : 'Home'}
+                {t.home}
               </Link>
               <span>/</span>
               <span className="text-gray-900">{pageTitle}</span>
@@ -189,7 +270,7 @@ export default function CategoryPage() {
                 {category.children.map((sub) => (
                   <Link
                     key={sub.id}
-                    href={`/category/${sub.id}`}
+                    href={`/category/${sub.slug || sub.id}`}
                     className="px-4 py-2 bg-gray-100 rounded-full text-sm hover:bg-primary-100 hover:text-primary-600 transition-colors"
                   >
                     {language === 'ar' ? sub.nameAr : sub.nameEn}
@@ -240,24 +321,26 @@ export default function CategoryPage() {
                 </div>
 
                 {/* Brands */}
-                <div className="mb-6">
-                  <h4 className="font-medium mb-3">{t.brand}</h4>
-                  <div className="space-y-2 max-h-48 overflow-y-auto">
-                    {brands.map((brand) => (
-                      <label key={brand.id} className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={selectedBrands.includes(brand.id)}
-                          onChange={() => toggleBrand(brand.id)}
-                          className="w-4 h-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                        />
-                        <span className="text-sm">
-                          {language === 'ar' ? brand.nameAr : brand.nameEn}
-                        </span>
-                      </label>
-                    ))}
+                {brands.length > 0 && (
+                  <div className="mb-6">
+                    <h4 className="font-medium mb-3">{t.brand}</h4>
+                    <div className="space-y-2 max-h-48 overflow-y-auto">
+                      {brands.map((brand) => (
+                        <label key={brand.id} className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={selectedBrands.includes(brand.id)}
+                            onChange={() => toggleBrand(brand.id)}
+                            className="w-4 h-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                          />
+                          <span className="text-sm">
+                            {language === 'ar' ? brand.nameAr : brand.nameEn}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {/* Availability */}
                 <div>
@@ -346,7 +429,7 @@ export default function CategoryPage() {
                   {filteredProducts.map((product) => (
                     <ProductCard
                       key={product.id}
-                      product={product}
+                      product={product as any}
                       variant={viewMode === 'list' ? 'horizontal' : 'default'}
                     />
                   ))}
@@ -404,24 +487,26 @@ export default function CategoryPage() {
                 </div>
 
                 {/* Brands */}
-                <div>
-                  <h4 className="font-medium mb-3">{t.brand}</h4>
-                  <div className="space-y-2">
-                    {brands.map((brand) => (
-                      <label key={brand.id} className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={selectedBrands.includes(brand.id)}
-                          onChange={() => toggleBrand(brand.id)}
-                          className="w-4 h-4 rounded border-gray-300 text-primary-600"
-                        />
-                        <span className="text-sm">
-                          {language === 'ar' ? brand.nameAr : brand.nameEn}
-                        </span>
-                      </label>
-                    ))}
+                {brands.length > 0 && (
+                  <div>
+                    <h4 className="font-medium mb-3">{t.brand}</h4>
+                    <div className="space-y-2">
+                      {brands.map((brand) => (
+                        <label key={brand.id} className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={selectedBrands.includes(brand.id)}
+                            onChange={() => toggleBrand(brand.id)}
+                            className="w-4 h-4 rounded border-gray-300 text-primary-600"
+                          />
+                          <span className="text-sm">
+                            {language === 'ar' ? brand.nameAr : brand.nameEn}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {/* Availability */}
                 <div>
@@ -443,7 +528,7 @@ export default function CategoryPage() {
                   {t.clearAll}
                 </button>
                 <button onClick={() => setShowFilters(false)} className="flex-1 btn-primary">
-                  {language === 'ar' ? 'تطبيق' : 'Apply'}
+                  {t.apply}
                 </button>
               </div>
             </div>

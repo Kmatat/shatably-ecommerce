@@ -126,7 +126,6 @@ router.get('/', validateQuery(productsQuerySchema), async (req, res, next) => {
         include: {
           images: {
             orderBy: { sortOrder: 'asc' },
-            take: 1,
           },
           category: {
             select: {
@@ -164,11 +163,14 @@ router.get('/', validateQuery(productsQuerySchema), async (req, res, next) => {
       originalPrice: product.originalPrice ? Number(product.originalPrice) : null,
       unit: product.unit,
       stock: product.stock,
-      image: product.images[0]?.url || null,
+      images: product.images.map((img) => img.url),
+      categoryId: product.categoryId,
       category: product.category,
       brand: product.brand,
+      brandId: product.brandId,
       isFeatured: product.isFeatured,
       reviewCount: product._count.reviews,
+      createdAt: product.createdAt,
     }));
 
     res.json({
@@ -196,7 +198,6 @@ router.get('/featured', async (req, res, next) => {
       include: {
         images: {
           orderBy: { sortOrder: 'asc' },
-          take: 1,
         },
       },
     });
@@ -212,7 +213,8 @@ router.get('/featured', async (req, res, next) => {
         originalPrice: product.originalPrice ? Number(product.originalPrice) : null,
         unit: product.unit,
         stock: product.stock,
-        image: product.images[0]?.url || null,
+        images: product.images.map((img) => img.url),
+        categoryId: product.categoryId,
         isFeatured: product.isFeatured,
       })),
     });
@@ -237,7 +239,6 @@ router.get('/deals', async (req, res, next) => {
       include: {
         images: {
           orderBy: { sortOrder: 'asc' },
-          take: 1,
         },
       },
     });
@@ -253,7 +254,8 @@ router.get('/deals', async (req, res, next) => {
         originalPrice: product.originalPrice ? Number(product.originalPrice) : null,
         unit: product.unit,
         stock: product.stock,
-        image: product.images[0]?.url || null,
+        images: product.images.map((img) => img.url),
+        categoryId: product.categoryId,
       })),
     });
   } catch (error) {
@@ -455,6 +457,32 @@ router.get('/search/:query', async (req, res, next) => {
         nameEn: product.nameEn,
         price: Number(product.price),
         image: product.images[0]?.url || null,
+      })),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * GET /api/products/brands
+ * Get all brands
+ */
+router.get('/brands', async (req, res, next) => {
+  try {
+    const brands = await prisma.brand.findMany({
+      where: { isActive: true },
+      orderBy: { nameEn: 'asc' },
+    });
+
+    res.json({
+      success: true,
+      data: brands.map((brand) => ({
+        id: brand.id,
+        nameAr: brand.nameAr,
+        nameEn: brand.nameEn,
+        slug: brand.slug,
+        logo: brand.logo,
       })),
     });
   } catch (error) {
