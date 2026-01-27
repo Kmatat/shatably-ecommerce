@@ -6,22 +6,40 @@ import { validateBody } from '../middleware/validate';
 import { authenticate } from '../middleware/auth';
 import { AppError } from '../middleware/errorHandler';
 import { generateOtp, validateEgyptPhone } from '../utils/helpers';
-import smsService from '../services/sms.service';
+import otpService from '../services/otp.service';
 
 const router = Router();
 
-// Validation schemas
+// Check if using email-based OTP
+const isEmailOtp = () => otpService.getProviderType() === 'email';
+
+// Validation schemas - support both phone and email based on OTP provider
 const sendOtpSchema = z.object({
-  phone: z.string().refine(validateEgyptPhone, {
-    message: 'Invalid Egyptian phone number',
-  }),
+  phone: z.string().optional(),
+  email: z.string().email().optional(),
+}).refine((data) => {
+  // Require at least phone or email
+  return !!data.email || !!data.phone;
+}, {
+  message: 'Either email or phone is required',
+}).refine((data) => {
+  // If phone provided, validate it
+  if (data.phone && !validateEgyptPhone(data.phone)) {
+    return false;
+  }
+  return true;
+}, {
+  message: 'Invalid Egyptian phone number',
 });
 
 const verifyOtpSchema = z.object({
-  phone: z.string().refine(validateEgyptPhone, {
-    message: 'Invalid Egyptian phone number',
-  }),
+  phone: z.string().optional(),
+  email: z.string().email().optional(),
   code: z.string().length(6),
+}).refine((data) => {
+  return !!data.email || !!data.phone;
+}, {
+  message: 'Either email or phone is required',
 });
 
 const updateProfileSchema = z.object({
@@ -32,40 +50,80 @@ const updateProfileSchema = z.object({
 });
 
 /**
+ * GET /api/auth/otp-config
+ * Get OTP provider configuration
+ */
+router.get('/otp-config', (req, res) => {
+  const providerType = otpService.getProviderType();
+  res.json({
+    success: true,
+    data: {
+      provider: providerType,
+      requiresEmail: providerType === 'email',
+      requiresPhone: providerType === 'sms',
+    },
+  });
+});
+
+/**
  * POST /api/auth/send-otp
- * Send OTP to phone number
+ * Send OTP to phone number or email
  */
 router.post('/send-otp', validateBody(sendOtpSchema), async (req, res, next) => {
   try {
-    const { phone } = req.body;
+    const { phone, email } = req.body;
+    const providerType = otpService.getProviderType();
+
+    // Determine the recipient based on provider type
+    let recipient: string;
+    if (providerType === 'email') {
+      if (!email) {
+        throw new AppError('Email is required for email OTP', 400);
+      }
+      recipient = email;
+    } else {
+      if (!phone) {
+        throw new AppError('Phone number is required for SMS OTP', 400);
+      }
+      recipient = phone;
+    }
 
     // Generate OTP
     const code = generateOtp(6);
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
 
-    // Check if user exists
-    let user = await prisma.user.findUnique({
-      where: { phone },
-    });
+    // Check if user exists (by phone or email)
+    let user = null;
+    if (phone) {
+      user = await prisma.user.findUnique({ where: { phone } });
+    }
+    if (!user && email) {
+      user = await prisma.user.findUnique({ where: { email } });
+    }
 
-    // Create or update OTP
+    // Create OTP record
     await prisma.otpCode.create({
       data: {
-        phone,
+        phone: phone || email, // Store email in phone field if no phone (backward compatible)
         code,
         expiresAt,
         userId: user?.id,
       },
     });
 
-    // Send OTP via SMS
-    await smsService.sendOtp(phone, code);
+    // Send OTP
+    const sent = await otpService.sendOtp(recipient, code);
+    if (!sent) {
+      throw new AppError('Failed to send OTP. Please try again.', 500);
+    }
 
     res.json({
       success: true,
-      message: 'OTP sent successfully',
+      message: providerType === 'email' ? 'OTP sent to your email' : 'OTP sent to your phone',
       data: {
-        phone,
+        phone: phone || undefined,
+        email: email || undefined,
+        method: providerType,
         expiresIn: 300, // 5 minutes in seconds
         isNewUser: !user,
       },
@@ -81,12 +139,19 @@ router.post('/send-otp', validateBody(sendOtpSchema), async (req, res, next) => 
  */
 router.post('/verify-otp', validateBody(verifyOtpSchema), async (req, res, next) => {
   try {
-    const { phone, code } = req.body;
+    const { phone, email, code } = req.body;
+    const providerType = otpService.getProviderType();
+
+    // Determine the identifier (phone field stores both phone and email for backward compatibility)
+    const identifier = phone || email;
+    if (!identifier) {
+      throw new AppError('Phone or email is required', 400);
+    }
 
     // Find valid OTP
     const otp = await prisma.otpCode.findFirst({
       where: {
-        phone,
+        phone: identifier,
         code,
         verified: false,
         expiresAt: {
@@ -109,20 +174,34 @@ router.post('/verify-otp', validateBody(verifyOtpSchema), async (req, res, next)
     });
 
     // Find or create user
-    let user = await prisma.user.findUnique({
-      where: { phone },
-    });
+    let user = null;
+    if (phone) {
+      user = await prisma.user.findUnique({ where: { phone } });
+    }
+    if (!user && email) {
+      user = await prisma.user.findUnique({ where: { email } });
+    }
 
     const isNewUser = !user;
 
     if (!user) {
-      user = await prisma.user.create({
-        data: {
-          phone,
-          role: 'customer',
-          type: 'homeowner',
-        },
-      });
+      // Create new user
+      const userData: {
+        phone: string;
+        email?: string;
+        role: 'customer';
+        type: 'homeowner';
+      } = {
+        phone: phone || `email_${Date.now()}`, // Generate placeholder if phone not provided
+        role: 'customer',
+        type: 'homeowner',
+      };
+
+      if (email) {
+        userData.email = email;
+      }
+
+      user = await prisma.user.create({ data: userData });
 
       // Create cart for new user
       await prisma.cart.create({
@@ -137,6 +216,7 @@ router.post('/verify-otp', validateBody(verifyOtpSchema), async (req, res, next)
       {
         userId: user.id,
         phone: user.phone,
+        email: user.email,
         role: user.role,
       },
       process.env.JWT_SECRET || 'secret',
@@ -160,6 +240,7 @@ router.post('/verify-otp', validateBody(verifyOtpSchema), async (req, res, next)
           languagePreference: user.languagePreference,
         },
         isNewUser,
+        method: providerType,
       },
     });
   } catch (error) {
