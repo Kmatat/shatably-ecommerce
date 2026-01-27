@@ -16,7 +16,8 @@ interface ApiProduct {
   originalPrice: number | null;
   unit: string;
   stock: number;
-  image: string | null;
+  images: string[];
+  categoryId?: string;
   isFeatured?: boolean;
 }
 
@@ -30,8 +31,8 @@ function transformProduct(p: ApiProduct): Product {
     descriptionEn: '',
     price: p.price,
     originalPrice: p.originalPrice || undefined,
-    images: p.image ? [p.image] : ['/placeholder-product.jpg'],
-    categoryId: '',
+    images: p.images && p.images.length > 0 ? p.images : ['/placeholder-product.jpg'],
+    categoryId: p.categoryId || '',
     stock: p.stock,
     unit: p.unit as any,
     isFeatured: p.isFeatured,
