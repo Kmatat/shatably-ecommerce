@@ -40,7 +40,7 @@ interface Product {
   unit: string;
   stock: number;
   sku: string;
-  images: ProductImage[];
+  images: (ProductImage | string)[];
   rating: number | null;
   reviewCount: number;
   specifications: Record<string, string> | null;
@@ -284,7 +284,9 @@ export default function ProductPage() {
                 <div className="relative aspect-square rounded-xl overflow-hidden bg-gray-100 mb-4">
                   {product.images && product.images.length > 0 ? (
                     <Image
-                      src={product.images[selectedImage]?.url || product.images[selectedImage]}
+                      src={typeof product.images[selectedImage] === 'string'
+                        ? product.images[selectedImage] as string
+                        : product.images[selectedImage]?.url || ''}
                       alt={name}
                       fill
                       className="object-cover"
