@@ -35,7 +35,7 @@ export interface Category {
 }
 
 // User Types
-export type UserType = 'homeowner' | 'contractor' | 'designer';
+export type UserType = 'homeowner' | 'contractor' | 'designer' | 'worker';
 
 export interface User {
   id: string;
