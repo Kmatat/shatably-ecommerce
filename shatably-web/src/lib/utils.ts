@@ -140,8 +140,9 @@ export const unitLabels = {
 
 // Get unit label
 export function getUnitLabel(
-  unit: 'piece' | 'bag' | 'ton' | 'meter' | 'box' | 'kg',
+  unit: string,
   locale: 'ar' | 'en'
 ): string {
-  return unitLabels[locale][unit];
+  const labels = unitLabels[locale];
+  return labels[unit as keyof typeof labels] || unit;
 }
