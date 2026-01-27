@@ -118,6 +118,7 @@ export default function AccountPage() {
     homeowner: { ar: 'صاحب منزل', en: 'Homeowner', icon: '🏠' },
     contractor: { ar: 'مقاول', en: 'Contractor', icon: '👷' },
     designer: { ar: 'مصمم داخلي', en: 'Interior Designer', icon: '🎨' },
+    worker: { ar: 'عامل', en: 'Worker', icon: '🔧' },
   };
 
   const handleSaveProfile = () => {
