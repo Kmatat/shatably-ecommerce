@@ -53,6 +53,11 @@ interface Product {
   };
 }
 
+// Helper function to get image URL from either string or ProductImage
+function getImageUrl(img: ProductImage | string): string {
+  return typeof img === 'string' ? img : img.url;
+}
+
 export default function ProductPage() {
   const router = useRouter();
   const { id } = router.query;
@@ -284,9 +289,7 @@ export default function ProductPage() {
                 <div className="relative aspect-square rounded-xl overflow-hidden bg-gray-100 mb-4">
                   {product.images && product.images.length > 0 ? (
                     <Image
-                      src={typeof product.images[selectedImage] === 'string'
-                        ? product.images[selectedImage] as string
-                        : product.images[selectedImage]?.url || ''}
+                      src={getImageUrl(product.images[selectedImage])}
                       alt={name}
                       fill
                       className="object-cover"
@@ -314,7 +317,7 @@ export default function ProductPage() {
                           selectedImage === index ? 'border-primary-500' : 'border-transparent'
                         )}
                       >
-                        <Image src={typeof img === 'string' ? img : img.url} alt="" fill className="object-cover" />
+                        <Image src={getImageUrl(img)} alt="" fill className="object-cover" />
                       </button>
                     ))}
                   </div>
