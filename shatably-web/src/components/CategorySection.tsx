@@ -98,13 +98,12 @@ export default function CategorySection() {
                     {language === 'ar' ? category.nameAr : category.nameEn}
                   </h3>
 
-                  {/* Subcategories count */}
-                  {category.children && category.children.length > 0 && (
-                    <p className="text-sm text-gray-500">
-                      {category.children.length}{' '}
-                      {language === 'ar' ? 'فئة فرعية' : 'subcategories'}
-                    </p>
-                  )}
+                  {/* Product count - includes category's own products plus all children's products */}
+                  <p className="text-sm text-gray-500">
+                    {(category.productCount || 0) +
+                      (category.children?.reduce((sum, c) => sum + (c.productCount || 0), 0) || 0)}{' '}
+                    {language === 'ar' ? 'منتج' : 'products'}
+                  </p>
                 </div>
               </Link>
             ))}

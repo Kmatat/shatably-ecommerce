@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import jwt from 'jsonwebtoken';
+import bcrypt from 'bcryptjs';
 import prisma from '../config/database';
 import { validateBody } from '../middleware/validate';
 import { authenticate } from '../middleware/auth';
@@ -45,8 +46,20 @@ const verifyOtpSchema = z.object({
 const updateProfileSchema = z.object({
   name: z.string().min(2).max(100).optional(),
   email: z.string().email().optional(),
-  type: z.enum(['homeowner', 'contractor', 'designer']).optional(),
+  type: z.enum(['homeowner', 'contractor', 'designer', 'worker']).optional(),
   languagePreference: z.enum(['ar', 'en']).optional(),
+});
+
+// Password schemas
+const setPasswordSchema = z.object({
+  password: z.string().min(6).max(100),
+});
+
+const loginPasswordSchema = z.object({
+  phone: z.string().refine((val) => validateEgyptPhone(val), {
+    message: 'Invalid Egyptian phone number',
+  }),
+  password: z.string().min(1),
 });
 
 /**
@@ -225,6 +238,9 @@ router.post('/verify-otp', validateBody(verifyOtpSchema), async (req, res, next)
       } as jwt.SignOptions
     );
 
+    // Check if user needs to set password (new users or users without password)
+    const requiresPassword = isNewUser || !user.password;
+
     res.json({
       success: true,
       message: isNewUser ? 'Account created successfully' : 'Login successful',
@@ -238,9 +254,117 @@ router.post('/verify-otp', validateBody(verifyOtpSchema), async (req, res, next)
           type: user.type,
           role: user.role,
           languagePreference: user.languagePreference,
+          hasPassword: !!user.password,
         },
         isNewUser,
+        requiresPassword,
         method: providerType,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * POST /api/auth/set-password
+ * Set password after OTP verification (for new users or password reset)
+ */
+router.post('/set-password', authenticate, validateBody(setPasswordSchema), async (req, res, next) => {
+  try {
+    const { password } = req.body;
+
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 12);
+
+    // Update user with password
+    const user = await prisma.user.update({
+      where: { id: req.user!.id },
+      data: {
+        password: hashedPassword,
+        passwordSetAt: new Date(),
+      },
+      select: {
+        id: true,
+        phone: true,
+        email: true,
+        name: true,
+        type: true,
+        role: true,
+        languagePreference: true,
+      },
+    });
+
+    res.json({
+      success: true,
+      message: 'Password set successfully',
+      data: { user },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * POST /api/auth/login-password
+ * Login with phone number and password
+ */
+router.post('/login-password', validateBody(loginPasswordSchema), async (req, res, next) => {
+  try {
+    const { phone, password } = req.body;
+
+    // Find user by phone
+    const user = await prisma.user.findUnique({
+      where: { phone },
+    });
+
+    if (!user) {
+      throw new AppError('Invalid phone number or password', 401);
+    }
+
+    if (!user.isActive) {
+      throw new AppError('Account is deactivated', 401);
+    }
+
+    if (!user.password) {
+      throw new AppError('Password not set. Please login with OTP first.', 401);
+    }
+
+    // Verify password
+    const isValid = await bcrypt.compare(password, user.password);
+    if (!isValid) {
+      throw new AppError('Invalid phone number or password', 401);
+    }
+
+    // Generate JWT
+    const token = jwt.sign(
+      {
+        userId: user.id,
+        phone: user.phone,
+        email: user.email,
+        role: user.role,
+      },
+      process.env.JWT_SECRET || 'secret',
+      {
+        expiresIn: process.env.JWT_EXPIRES_IN || '7d',
+      } as jwt.SignOptions
+    );
+
+    res.json({
+      success: true,
+      message: 'Login successful',
+      data: {
+        token,
+        user: {
+          id: user.id,
+          phone: user.phone,
+          name: user.name,
+          email: user.email,
+          type: user.type,
+          role: user.role,
+          languagePreference: user.languagePreference,
+          hasPassword: true,
+        },
       },
     });
   } catch (error) {

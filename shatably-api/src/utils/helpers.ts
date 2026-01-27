@@ -52,25 +52,48 @@ export const formatPhone = (phone: string): string => {
 };
 
 /**
- * Calculate delivery fee
+ * Delivery settings interface
+ */
+export interface DeliveryFeeSettings {
+  expressBaseFee: number;
+  scheduledBaseFee: number;
+  freeDeliveryThreshold: number;
+  itemCountThreshold: number;
+  itemCountDiscount: number;
+  highValueThreshold: number;
+  highValueDeliveryFee: number;
+}
+
+/**
+ * Calculate delivery fee with dynamic settings
  */
 export const calculateDeliveryFee = (
   subtotal: number,
   deliveryType: 'express' | 'scheduled',
-  settings: {
-    expressBaseFee: number;
-    scheduledBaseFee: number;
-    freeDeliveryThreshold: number;
-  }
+  itemCount: number,
+  settings: DeliveryFeeSettings
 ): number => {
-  // Free delivery for orders above threshold (scheduled only)
+  // Free delivery for scheduled orders above threshold
   if (deliveryType === 'scheduled' && subtotal >= settings.freeDeliveryThreshold) {
     return 0;
   }
 
-  return deliveryType === 'express' 
-    ? settings.expressBaseFee 
+  // High value orders get reduced fee
+  if (subtotal >= settings.highValueThreshold) {
+    return settings.highValueDeliveryFee;
+  }
+
+  // Base fee based on delivery type
+  let fee = deliveryType === 'express'
+    ? settings.expressBaseFee
     : settings.scheduledBaseFee;
+
+  // Apply item count discount if threshold is met
+  if (itemCount >= settings.itemCountThreshold && settings.itemCountDiscount > 0) {
+    fee = fee * (1 - settings.itemCountDiscount / 100);
+  }
+
+  return Math.round(fee);
 };
 
 /**

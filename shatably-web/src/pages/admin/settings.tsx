@@ -1,5 +1,5 @@
 import Head from 'next/head';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Settings,
   Store,
@@ -9,6 +9,7 @@ import {
   Globe,
   Save,
   RefreshCw,
+  Loader2,
 } from 'lucide-react';
 import AdminLayout from '@/components/AdminLayout';
 import { useLanguageStore } from '@/lib/store';
@@ -20,11 +21,12 @@ export default function AdminSettingsPage() {
   const { language } = useLanguageStore();
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const [isSaving, setIsSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  // Mock settings state
   const [settings, setSettings] = useState({
     general: {
-      storeName: 'شطابلي',
+      storeNameAr: 'شطابلي',
       storeNameEn: 'Shatably',
       phone: '16XXX',
       email: 'support@shatably.com',
@@ -34,18 +36,20 @@ export default function AdminSettingsPage() {
     delivery: {
       expressEnabled: true,
       expressBaseFee: 150,
-      expressRatePerKm: 5,
       scheduledBaseFee: 100,
-      scheduledRatePerKm: 3,
-      freeDeliveryThreshold: 5000,
+      freeDeliveryThreshold: 10000,
+      itemCountThreshold: 10,
+      itemCountDiscount: 20,
+      highValueThreshold: 15000,
+      highValueDeliveryFee: 50,
       operatingHoursStart: '08:00',
       operatingHoursEnd: '20:00',
     },
     payment: {
       codEnabled: true,
-      cardEnabled: true,
-      fawryEnabled: true,
-      walletEnabled: true,
+      cardEnabled: false,
+      fawryEnabled: false,
+      walletEnabled: false,
       minOrderAmount: 100,
     },
     notifications: {
@@ -56,6 +60,35 @@ export default function AdminSettingsPage() {
       promotions: false,
     },
   });
+
+  // Fetch settings on mount
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/settings`, {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('token')}`,
+          },
+        });
+        if (response.ok) {
+          const data = await response.json();
+          if (data.data) {
+            setSettings((prev) => ({
+              general: { ...prev.general, ...data.data.general },
+              delivery: { ...prev.delivery, ...data.data.delivery },
+              payment: { ...prev.payment, ...data.data.payment },
+              notifications: { ...prev.notifications, ...data.data.notifications },
+            }));
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch settings:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchSettings();
+  }, []);
 
   const content = {
     ar: {
@@ -68,6 +101,9 @@ export default function AdminSettingsPage() {
       },
       save: 'حفظ التغييرات',
       saving: 'جاري الحفظ...',
+      saved: 'تم الحفظ بنجاح',
+      error: 'فشل في الحفظ',
+      loading: 'جاري التحميل...',
       general: {
         title: 'الإعدادات العامة',
         storeName: 'اسم المتجر (عربي)',
@@ -80,14 +116,17 @@ export default function AdminSettingsPage() {
       delivery: {
         title: 'إعدادات التوصيل',
         expressEnabled: 'تفعيل التوصيل السريع',
-        expressBaseFee: 'رسوم التوصيل السريع الأساسية',
-        expressRatePerKm: 'سعر الكيلومتر (سريع)',
-        scheduledBaseFee: 'رسوم التوصيل المجدول الأساسية',
-        scheduledRatePerKm: 'سعر الكيلومتر (مجدول)',
+        expressBaseFee: 'رسوم التوصيل السريع',
+        scheduledBaseFee: 'رسوم التوصيل المجدول',
         freeDeliveryThreshold: 'حد التوصيل المجاني',
+        itemCountThreshold: 'عدد المنتجات للخصم',
+        itemCountDiscount: 'نسبة خصم التوصيل (%)',
+        highValueThreshold: 'حد الطلبات الكبيرة',
+        highValueDeliveryFee: 'رسوم الطلبات الكبيرة',
         operatingHours: 'ساعات العمل',
         from: 'من',
         to: 'إلى',
+        rulesNote: 'قواعد التوصيل: توصيل مجاني للطلبات فوق حد معين، خصم على التوصيل عند شراء عدد كبير من المنتجات',
       },
       payment: {
         title: 'طرق الدفع',
@@ -119,6 +158,9 @@ export default function AdminSettingsPage() {
       },
       save: 'Save Changes',
       saving: 'Saving...',
+      saved: 'Saved successfully',
+      error: 'Failed to save',
+      loading: 'Loading...',
       general: {
         title: 'General Settings',
         storeName: 'Store Name (Arabic)',
@@ -131,14 +173,17 @@ export default function AdminSettingsPage() {
       delivery: {
         title: 'Delivery Settings',
         expressEnabled: 'Enable Express Delivery',
-        expressBaseFee: 'Express Base Fee',
-        expressRatePerKm: 'Express Rate per KM',
-        scheduledBaseFee: 'Scheduled Base Fee',
-        scheduledRatePerKm: 'Scheduled Rate per KM',
+        expressBaseFee: 'Express Delivery Fee',
+        scheduledBaseFee: 'Scheduled Delivery Fee',
         freeDeliveryThreshold: 'Free Delivery Threshold',
+        itemCountThreshold: 'Item Count for Discount',
+        itemCountDiscount: 'Delivery Discount (%)',
+        highValueThreshold: 'High Value Order Threshold',
+        highValueDeliveryFee: 'High Value Order Fee',
         operatingHours: 'Operating Hours',
         from: 'From',
         to: 'To',
+        rulesNote: 'Delivery rules: Free delivery above threshold, discount on delivery for bulk orders',
       },
       payment: {
         title: 'Payment Methods',
@@ -173,9 +218,45 @@ export default function AdminSettingsPage() {
 
   const handleSave = async () => {
     setIsSaving(true);
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    setIsSaving(false);
+    setSaveMessage(null);
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/settings`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: JSON.stringify({
+          general: settings.general,
+          delivery: settings.delivery,
+          payment: settings.payment,
+          notifications: settings.notifications,
+        }),
+      });
+      if (response.ok) {
+        setSaveMessage({ type: 'success', text: t.saved });
+      } else {
+        throw new Error('Failed to save');
+      }
+    } catch (error) {
+      console.error('Failed to save settings:', error);
+      setSaveMessage({ type: 'error', text: t.error });
+    } finally {
+      setIsSaving(false);
+      setTimeout(() => setSaveMessage(null), 3000);
+    }
   };
+
+  if (isLoading) {
+    return (
+      <AdminLayout title={t.title}>
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="w-8 h-8 animate-spin text-primary-500" />
+          <span className="ms-2 text-gray-500">{t.loading}</span>
+        </div>
+      </AdminLayout>
+    );
+  }
 
   return (
     <>
@@ -221,9 +302,10 @@ export default function AdminSettingsPage() {
                         <label className="block text-sm font-medium text-gray-700 mb-1">{t.general.storeName}</label>
                         <input
                           type="text"
-                          value={settings.general.storeName}
-                          onChange={(e) => setSettings({ ...settings, general: { ...settings.general, storeName: e.target.value } })}
+                          value={settings.general.storeNameAr}
+                          onChange={(e) => setSettings({ ...settings, general: { ...settings.general, storeNameAr: e.target.value } })}
                           className="input"
+                          dir="rtl"
                         />
                       </div>
                       <div>
@@ -263,6 +345,10 @@ export default function AdminSettingsPage() {
                 <div>
                   <h2 className="text-lg font-semibold mb-6">{t.delivery.title}</h2>
                   <div className="space-y-6">
+                    <div className="p-4 bg-blue-50 text-blue-700 rounded-lg text-sm">
+                      {t.delivery.rulesNote}
+                    </div>
+
                     <label className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                       <span className="font-medium">{t.delivery.expressEnabled}</span>
                       <input
@@ -272,38 +358,95 @@ export default function AdminSettingsPage() {
                         className="w-5 h-5 rounded text-primary-600"
                       />
                     </label>
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">{t.delivery.expressBaseFee}</label>
-                        <input type="number" value={settings.delivery.expressBaseFee} onChange={(e) => setSettings({ ...settings, delivery: { ...settings.delivery, expressBaseFee: Number(e.target.value) } })} className="input" />
+                        <label className="block text-sm font-medium text-gray-700 mb-1">{t.delivery.expressBaseFee} (EGP)</label>
+                        <input
+                          type="number"
+                          value={settings.delivery.expressBaseFee}
+                          onChange={(e) => setSettings({ ...settings, delivery: { ...settings.delivery, expressBaseFee: Number(e.target.value) } })}
+                          className="input"
+                        />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">{t.delivery.expressRatePerKm}</label>
-                        <input type="number" value={settings.delivery.expressRatePerKm} onChange={(e) => setSettings({ ...settings, delivery: { ...settings.delivery, expressRatePerKm: Number(e.target.value) } })} className="input" />
+                        <label className="block text-sm font-medium text-gray-700 mb-1">{t.delivery.scheduledBaseFee} (EGP)</label>
+                        <input
+                          type="number"
+                          value={settings.delivery.scheduledBaseFee}
+                          onChange={(e) => setSettings({ ...settings, delivery: { ...settings.delivery, scheduledBaseFee: Number(e.target.value) } })}
+                          className="input"
+                        />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">{t.delivery.scheduledBaseFee}</label>
-                        <input type="number" value={settings.delivery.scheduledBaseFee} onChange={(e) => setSettings({ ...settings, delivery: { ...settings.delivery, scheduledBaseFee: Number(e.target.value) } })} className="input" />
+                        <label className="block text-sm font-medium text-gray-700 mb-1">{t.delivery.freeDeliveryThreshold} (EGP)</label>
+                        <input
+                          type="number"
+                          value={settings.delivery.freeDeliveryThreshold}
+                          onChange={(e) => setSettings({ ...settings, delivery: { ...settings.delivery, freeDeliveryThreshold: Number(e.target.value) } })}
+                          className="input"
+                        />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">{t.delivery.scheduledRatePerKm}</label>
-                        <input type="number" value={settings.delivery.scheduledRatePerKm} onChange={(e) => setSettings({ ...settings, delivery: { ...settings.delivery, scheduledRatePerKm: Number(e.target.value) } })} className="input" />
+                        <label className="block text-sm font-medium text-gray-700 mb-1">{t.delivery.itemCountThreshold}</label>
+                        <input
+                          type="number"
+                          value={settings.delivery.itemCountThreshold}
+                          onChange={(e) => setSettings({ ...settings, delivery: { ...settings.delivery, itemCountThreshold: Number(e.target.value) } })}
+                          className="input"
+                        />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">{t.delivery.freeDeliveryThreshold}</label>
-                        <input type="number" value={settings.delivery.freeDeliveryThreshold} onChange={(e) => setSettings({ ...settings, delivery: { ...settings.delivery, freeDeliveryThreshold: Number(e.target.value) } })} className="input" />
+                        <label className="block text-sm font-medium text-gray-700 mb-1">{t.delivery.itemCountDiscount}</label>
+                        <input
+                          type="number"
+                          value={settings.delivery.itemCountDiscount}
+                          onChange={(e) => setSettings({ ...settings, delivery: { ...settings.delivery, itemCountDiscount: Number(e.target.value) } })}
+                          className="input"
+                          min="0"
+                          max="100"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">{t.delivery.highValueThreshold} (EGP)</label>
+                        <input
+                          type="number"
+                          value={settings.delivery.highValueThreshold}
+                          onChange={(e) => setSettings({ ...settings, delivery: { ...settings.delivery, highValueThreshold: Number(e.target.value) } })}
+                          className="input"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">{t.delivery.highValueDeliveryFee} (EGP)</label>
+                        <input
+                          type="number"
+                          value={settings.delivery.highValueDeliveryFee}
+                          onChange={(e) => setSettings({ ...settings, delivery: { ...settings.delivery, highValueDeliveryFee: Number(e.target.value) } })}
+                          className="input"
+                        />
                       </div>
                     </div>
+
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">{t.delivery.operatingHours}</label>
                       <div className="flex items-center gap-4">
                         <div className="flex items-center gap-2">
                           <span className="text-sm text-gray-500">{t.delivery.from}</span>
-                          <input type="time" value={settings.delivery.operatingHoursStart} onChange={(e) => setSettings({ ...settings, delivery: { ...settings.delivery, operatingHoursStart: e.target.value } })} className="input w-32" />
+                          <input
+                            type="time"
+                            value={settings.delivery.operatingHoursStart}
+                            onChange={(e) => setSettings({ ...settings, delivery: { ...settings.delivery, operatingHoursStart: e.target.value } })}
+                            className="input w-32"
+                          />
                         </div>
                         <div className="flex items-center gap-2">
                           <span className="text-sm text-gray-500">{t.delivery.to}</span>
-                          <input type="time" value={settings.delivery.operatingHoursEnd} onChange={(e) => setSettings({ ...settings, delivery: { ...settings.delivery, operatingHoursEnd: e.target.value } })} className="input w-32" />
+                          <input
+                            type="time"
+                            value={settings.delivery.operatingHoursEnd}
+                            onChange={(e) => setSettings({ ...settings, delivery: { ...settings.delivery, operatingHoursEnd: e.target.value } })}
+                            className="input w-32"
+                          />
                         </div>
                       </div>
                     </div>
@@ -333,8 +476,13 @@ export default function AdminSettingsPage() {
                       </label>
                     ))}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">{t.payment.minOrderAmount}</label>
-                      <input type="number" value={settings.payment.minOrderAmount} onChange={(e) => setSettings({ ...settings, payment: { ...settings.payment, minOrderAmount: Number(e.target.value) } })} className="input w-48" />
+                      <label className="block text-sm font-medium text-gray-700 mb-1">{t.payment.minOrderAmount} (EGP)</label>
+                      <input
+                        type="number"
+                        value={settings.payment.minOrderAmount}
+                        onChange={(e) => setSettings({ ...settings, payment: { ...settings.payment, minOrderAmount: Number(e.target.value) } })}
+                        className="input w-48"
+                      />
                     </div>
                   </div>
                 </div>
@@ -367,14 +515,24 @@ export default function AdminSettingsPage() {
               )}
 
               {/* Save Button */}
-              <div className="mt-8 pt-6 border-t flex justify-end">
-                <button onClick={handleSave} disabled={isSaving} className="btn-primary">
-                  {isSaving ? (
-                    <><RefreshCw className="w-5 h-5 animate-spin me-2" />{t.saving}</>
-                  ) : (
-                    <><Save className="w-5 h-5 me-2" />{t.save}</>
-                  )}
-                </button>
+              <div className="mt-8 pt-6 border-t flex items-center justify-between">
+                {saveMessage && (
+                  <span className={cn(
+                    'text-sm font-medium',
+                    saveMessage.type === 'success' ? 'text-green-600' : 'text-red-600'
+                  )}>
+                    {saveMessage.text}
+                  </span>
+                )}
+                <div className="ms-auto">
+                  <button onClick={handleSave} disabled={isSaving} className="btn-primary">
+                    {isSaving ? (
+                      <><RefreshCw className="w-5 h-5 animate-spin me-2" />{t.saving}</>
+                    ) : (
+                      <><Save className="w-5 h-5 me-2" />{t.save}</>
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
           </div>

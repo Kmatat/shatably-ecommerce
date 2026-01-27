@@ -5,6 +5,7 @@ import { authenticate } from '../middleware/auth';
 import { validateBody } from '../middleware/validate';
 import { AppError } from '../middleware/errorHandler';
 import { calculateDiscount, calculateDeliveryFee } from '../utils/helpers';
+import { getDeliverySettings } from '../utils/settings';
 
 const router = Router();
 
@@ -127,22 +128,19 @@ router.get('/', async (req, res, next) => {
       }
     }
 
-    // Calculate delivery fees for reference
-    const settings = {
-      expressBaseFee: 150,
-      scheduledBaseFee: 100,
-      freeDeliveryThreshold: 5000,
-    };
+    // Get dynamic delivery settings from database
+    const settings = await getDeliverySettings();
+    const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
 
-    const expressDeliveryFee = calculateDeliveryFee(subtotal, 'express', settings);
-    const scheduledDeliveryFee = calculateDeliveryFee(subtotal, 'scheduled', settings);
+    const expressDeliveryFee = calculateDeliveryFee(subtotal, 'express', itemCount, settings);
+    const scheduledDeliveryFee = calculateDeliveryFee(subtotal, 'scheduled', itemCount, settings);
 
     res.json({
       success: true,
       data: {
         id: cart.id,
         items,
-        itemCount: items.reduce((sum, item) => sum + item.quantity, 0),
+        itemCount,
         subtotal,
         discount,
         promo: promoDetails,
@@ -150,6 +148,9 @@ router.get('/', async (req, res, next) => {
           express: expressDeliveryFee,
           scheduled: scheduledDeliveryFee,
           freeThreshold: settings.freeDeliveryThreshold,
+          highValueThreshold: settings.highValueThreshold,
+          itemCountThreshold: settings.itemCountThreshold,
+          itemCountDiscount: settings.itemCountDiscount,
         },
       },
     });

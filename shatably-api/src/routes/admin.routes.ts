@@ -689,4 +689,173 @@ router.get('/categories', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+// ============ SETTINGS MANAGEMENT ============
+
+/**
+ * GET /api/admin/settings
+ * Get all settings as key-value object
+ */
+router.get('/settings', async (req, res, next) => {
+  try {
+    const settings = await prisma.setting.findMany();
+    const settingsMap: Record<string, any> = {};
+    settings.forEach((s) => {
+      settingsMap[s.key] = s.value;
+    });
+    res.json({ success: true, data: settingsMap });
+  } catch (error) { next(error); }
+});
+
+/**
+ * GET /api/admin/settings/:key
+ * Get a specific setting by key
+ */
+router.get('/settings/:key', async (req, res, next) => {
+  try {
+    const { key } = req.params;
+    const setting = await prisma.setting.findUnique({ where: { key } });
+    if (!setting) {
+      throw new AppError('Setting not found', 404);
+    }
+    res.json({ success: true, data: setting });
+  } catch (error) { next(error); }
+});
+
+/**
+ * PUT /api/admin/settings
+ * Update multiple settings at once
+ */
+router.put('/settings', async (req, res, next) => {
+  try {
+    const updates = req.body as Record<string, any>;
+
+    await prisma.$transaction(
+      Object.entries(updates).map(([key, value]) =>
+        prisma.setting.upsert({
+          where: { key },
+          update: { value },
+          create: { key, value },
+        })
+      )
+    );
+
+    res.json({ success: true, message: 'Settings updated successfully' });
+  } catch (error) { next(error); }
+});
+
+/**
+ * PUT /api/admin/settings/:key
+ * Update a specific setting
+ */
+router.put('/settings/:key', async (req, res, next) => {
+  try {
+    const { key } = req.params;
+    const { value } = req.body;
+
+    const setting = await prisma.setting.upsert({
+      where: { key },
+      update: { value },
+      create: { key, value },
+    });
+
+    res.json({ success: true, data: setting });
+  } catch (error) { next(error); }
+});
+
+// ============ MATERIAL LIST - ADD TO CART ============
+
+/**
+ * POST /api/admin/material-lists/:id/add-to-cart
+ * Admin adds products to user's cart from material list
+ */
+router.post('/material-lists/:id/add-to-cart', async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { products } = req.body as { products: { productId: string; quantity: number }[] };
+
+    if (!products || !Array.isArray(products) || products.length === 0) {
+      throw new AppError('Products array is required', 400);
+    }
+
+    const list = await prisma.materialList.findUnique({
+      where: { id },
+      include: { user: true },
+    });
+
+    if (!list) {
+      throw new AppError('Material list not found', 404);
+    }
+
+    // Get or create user's cart
+    let cart = await prisma.cart.findUnique({
+      where: { userId: list.userId },
+    });
+
+    if (!cart) {
+      cart = await prisma.cart.create({
+        data: { userId: list.userId },
+      });
+    }
+
+    // Add products to cart in a transaction
+    await prisma.$transaction(async (tx) => {
+      for (const item of products) {
+        const product = await tx.product.findUnique({
+          where: { id: item.productId },
+        });
+
+        if (!product || !product.isActive) continue;
+
+        // Check if already in cart
+        const existingItem = await tx.cartItem.findUnique({
+          where: {
+            cartId_productId: {
+              cartId: cart!.id,
+              productId: item.productId,
+            },
+          },
+        });
+
+        if (existingItem) {
+          await tx.cartItem.update({
+            where: { id: existingItem.id },
+            data: { quantity: existingItem.quantity + item.quantity },
+          });
+        } else {
+          await tx.cartItem.create({
+            data: {
+              cartId: cart!.id,
+              productId: item.productId,
+              quantity: item.quantity,
+            },
+          });
+        }
+      }
+
+      // Update material list status and save cart snapshot
+      await tx.materialList.update({
+        where: { id },
+        data: {
+          status: 'ready',
+          processedAt: new Date(),
+          cartSnapshot: products,
+          assignedTo: req.user!.id,
+        },
+      });
+    });
+
+    // Send SMS notification to user
+    await smsService.sendMaterialListReady(list.user.phone);
+
+    res.json({
+      success: true,
+      message: 'Products added to customer cart',
+      data: {
+        productsAdded: products.length,
+        userId: list.userId,
+      },
+    });
+  } catch (error) { next(error); }
+});
+
 export default router;

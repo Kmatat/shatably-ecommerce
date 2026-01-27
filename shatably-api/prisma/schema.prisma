@@ -16,6 +16,7 @@ enum UserType {
   homeowner
   contractor
   designer
+  worker
 }
 
 enum UserRole {
@@ -43,6 +44,8 @@ model User {
   phone              String    @unique
   email              String?   @unique
   name               String?
+  password           String?   // bcrypt hashed password
+  passwordSetAt      DateTime? // when password was set
   type               UserType  @default(homeowner)
   role               UserRole  @default(customer)
   permissions        AdminPermission[] @default([])

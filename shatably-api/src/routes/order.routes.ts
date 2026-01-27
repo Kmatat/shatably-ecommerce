@@ -5,6 +5,7 @@ import { authenticate } from '../middleware/auth';
 import { validateBody } from '../middleware/validate';
 import { AppError } from '../middleware/errorHandler';
 import { generateOrderNumber, calculateDiscount, calculateDeliveryFee, paginate, createPaginatedResponse } from '../utils/helpers';
+import { getDeliverySettings } from '../utils/settings';
 import smsService from '../services/sms.service';
 
 const router = Router();
@@ -118,8 +119,10 @@ router.post('/', validateBody(createOrderSchema), async (req, res, next) => {
         sku: item.product.sku, price, quantity: item.quantity, total: itemTotal });
     }
 
-    const settings = { expressBaseFee: 150, scheduledBaseFee: 100, freeDeliveryThreshold: 5000 };
-    const deliveryFee = calculateDeliveryFee(subtotal, deliveryType, settings);
+    // Get dynamic delivery settings from database
+    const settings = await getDeliverySettings();
+    const itemCount = cart.items.reduce((sum, item) => sum + item.quantity, 0);
+    const deliveryFee = calculateDeliveryFee(subtotal, deliveryType, itemCount, settings);
 
     let discount = 0;
     if (cart.promoCode) {

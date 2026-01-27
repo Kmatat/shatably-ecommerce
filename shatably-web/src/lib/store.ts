@@ -101,16 +101,20 @@ export const useCartStore = create<CartState>()(
 // Auth Store
 interface AuthState {
   user: User | null;
+  token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   setUser: (user: User | null) => void;
+  setToken: (token: string | null) => void;
   logout: () => void;
+  getToken: () => string | null;
 }
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       user: null,
+      token: null,
       isAuthenticated: false,
       isLoading: false,
 
@@ -118,9 +122,15 @@ export const useAuthStore = create<AuthState>()(
         set({ user, isAuthenticated: !!user });
       },
 
-      logout: () => {
-        set({ user: null, isAuthenticated: false });
+      setToken: (token: string | null) => {
+        set({ token });
       },
+
+      logout: () => {
+        set({ user: null, token: null, isAuthenticated: false });
+      },
+
+      getToken: () => get().token,
     }),
     {
       name: 'shatably-auth',
