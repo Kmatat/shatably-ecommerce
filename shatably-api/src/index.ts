@@ -55,11 +55,34 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Health check
 app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'ok', 
+  res.json({
+    status: 'ok',
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV,
   });
+});
+
+// Database connection diagnostic
+app.get('/api/db-check', async (req, res) => {
+  const prisma = (await import('./config/database')).default;
+  try {
+    // Try a simple query
+    await prisma.$queryRaw`SELECT 1`;
+    res.json({
+      success: true,
+      message: 'Database connected successfully',
+      dbUrl: process.env.DATABASE_URL ?
+        process.env.DATABASE_URL.replace(/:[^:@]+@/, ':****@') : 'NOT SET'
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: 'Database connection failed',
+      error: error.message,
+      dbUrl: process.env.DATABASE_URL ?
+        process.env.DATABASE_URL.replace(/:[^:@]+@/, ':****@') : 'NOT SET'
+    });
+  }
 });
 
 // API Routes
