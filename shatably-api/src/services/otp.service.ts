@@ -1,6 +1,6 @@
 /**
  * OTP Service
- * Supports: Email (FREE), Console (dev), SMS Misr (paid), Unifonic (paid)
+ * Supports: Email (FREE), Console (dev), SMS Misr (paid), Unifonic (paid), Advansys (paid)
  *
  * Recommended setup:
  * - Development: console (logs OTP to terminal)
@@ -221,6 +221,64 @@ class UnifonicOtpProvider implements OtpProvider {
   }
 }
 
+// Advansys SMS provider (Egypt - paid)
+class AdvansysOtpProvider implements OtpProvider {
+  type: 'sms' = 'sms';
+  private apiKey: string;
+  private senderId: string;
+
+  constructor() {
+    this.apiKey = process.env.ADVANSYS_API_KEY || '';
+    this.senderId = process.env.ADVANSYS_SENDER_ID || 'Shatably';
+  }
+
+  async sendOtp(phone: string, code: string): Promise<boolean> {
+    if (!this.apiKey) {
+      console.warn('Advansys API key not configured, falling back to console');
+      return new ConsoleOtpProvider().sendOtp(phone, code);
+    }
+
+    try {
+      // Format phone for Egypt (should be like 201XXXXXXXXX)
+      let formattedPhone = phone.replace(/\D/g, '');
+      if (formattedPhone.startsWith('0')) {
+        formattedPhone = '2' + formattedPhone;
+      }
+      if (!formattedPhone.startsWith('20')) {
+        formattedPhone = '20' + formattedPhone;
+      }
+
+      const message = `رمز التحقق الخاص بك في شطابلي: ${code}\nYour Shatably verification code is: ${code}`;
+
+      const response = await fetch('https://hubapi.advansystelecom.com/api/bulkSMS/ForwardSMS', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'api-key': this.apiKey,
+        },
+        body: JSON.stringify({
+          senderName: this.senderId,
+          mobileNumber: formattedPhone,
+          message: message,
+        }),
+      });
+
+      const data = await response.json() as { success?: boolean; status?: string; message?: string };
+
+      if (response.ok && (data.success === true || data.status === 'success' || response.status === 200)) {
+        console.log(`✅ SMS sent to ${phone} via Advansys`);
+        return true;
+      } else {
+        console.error('❌ Advansys SMS failed:', data);
+        return false;
+      }
+    } catch (error) {
+      console.error('❌ Advansys SMS error:', error);
+      return false;
+    }
+  }
+}
+
 // Factory function to get the appropriate provider
 const getOtpProvider = (): OtpProvider => {
   const provider = process.env.OTP_PROVIDER || 'console';
@@ -232,6 +290,8 @@ const getOtpProvider = (): OtpProvider => {
       return new SmsMisrOtpProvider();
     case 'unifonic':
       return new UnifonicOtpProvider();
+    case 'advansys':
+      return new AdvansysOtpProvider();
     case 'console':
     default:
       return new ConsoleOtpProvider();
