@@ -23,7 +23,7 @@ import {
   Pencil,
   Shield,
 } from 'lucide-react';
-import { useLanguageStore } from '@/lib/store';
+import { useLanguageStore, useAuthStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
 
 interface AdminLayoutProps {
@@ -34,7 +34,13 @@ interface AdminLayoutProps {
 export default function AdminLayout({ children, title }: AdminLayoutProps) {
   const router = useRouter();
   const { language, setLanguage } = useLanguageStore();
+  const { logout, user } = useAuthStore();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  const handleLogout = () => {
+    logout();
+    router.push('/admin/login');
+  };
 
   const navigation = [
     { name: { ar: 'لوحة التحكم', en: 'Dashboard' }, href: '/admin', icon: LayoutDashboard },
@@ -171,13 +177,18 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
             <div className="relative group">
               <button className="flex items-center gap-2 p-2 hover:bg-gray-100 rounded-lg">
                 <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center">
-                  <span className="text-primary-600 font-medium text-sm">أ</span>
+                  <span className="text-primary-600 font-medium text-sm">
+                    {user?.name?.charAt(0) || 'أ'}
+                  </span>
                 </div>
                 <ChevronDown className="w-4 h-4 text-gray-400" />
               </button>
               <div className="absolute top-full end-0 mt-1 w-48 bg-white rounded-lg shadow-lg border opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
                 <div className="p-2">
-                  <button className="w-full flex items-center gap-2 px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg">
+                  <button
+                    onClick={handleLogout}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg"
+                  >
                     <LogOut className="w-4 h-4" />
                     <span>{language === 'ar' ? 'تسجيل الخروج' : 'Logout'}</span>
                   </button>

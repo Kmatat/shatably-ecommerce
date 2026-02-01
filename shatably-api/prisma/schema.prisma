@@ -41,20 +41,25 @@ enum AdminPermission {
 }
 
 model User {
-  id                 String    @id @default(uuid())
-  phone              String    @unique
-  email              String?   @unique
-  name               String?
-  password           String?   // bcrypt hashed password
-  passwordSetAt      DateTime? // when password was set
-  type               UserType  @default(homeowner)
-  role               UserRole  @default(customer)
-  permissions        AdminPermission[] @default([])
-  avatar             String?
-  languagePreference String    @default("ar")
-  isActive           Boolean   @default(true)
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  id                        String    @id @default(uuid())
+  phone                     String    @unique
+  email                     String?   @unique
+  name                      String?
+  password                  String?   // bcrypt hashed password
+  passwordSetAt             DateTime? // when password was set
+  passwordResetToken        String?   // hashed reset token
+  passwordResetExpires      DateTime? // reset token expiry
+  emailVerified             Boolean   @default(false)
+  emailVerificationToken    String?   // email verification token
+  emailVerificationExpires  DateTime? // verification token expiry
+  type                      UserType  @default(homeowner)
+  role                      UserRole  @default(customer)
+  permissions               AdminPermission[] @default([])
+  avatar                    String?
+  languagePreference        String    @default("ar")
+  isActive                  Boolean   @default(true)
+  createdAt                 DateTime  @default(now())
+  updatedAt                 DateTime  @updatedAt
 
   // Relations
   addresses          Address[]

@@ -19,6 +19,9 @@ export default function ProductCard({ product, variant = 'default' }: ProductCar
   const { showNotification } = useUIStore();
 
   const name = language === 'ar' ? product.nameAr : product.nameEn;
+  const imageUrl = product.images && product.images.length > 0 && product.images[0]
+    ? product.images[0]
+    : '/placeholder-product.jpg';
   const hasDiscount = product.originalPrice && product.originalPrice > product.price;
   const discountPercent = hasDiscount
     ? Math.round(((product.originalPrice! - product.price) / product.originalPrice!) * 100)
@@ -40,7 +43,7 @@ export default function ProductCard({ product, variant = 'default' }: ProductCar
         <div className="card flex gap-4 p-4 hover:shadow-lg transition-shadow">
           <div className="relative w-32 h-32 flex-shrink-0">
             <Image
-              src={product.images[0]}
+              src={imageUrl}
               alt={name}
               fill
               className="object-cover rounded-lg"
@@ -95,7 +98,7 @@ export default function ProductCard({ product, variant = 'default' }: ProductCar
           variant === 'compact' ? 'aspect-square' : 'aspect-[4/3]'
         )}>
           <Image
-            src={product.images[0]}
+            src={imageUrl}
             alt={name}
             fill
             className="object-cover group-hover:scale-105 transition-transform duration-300"

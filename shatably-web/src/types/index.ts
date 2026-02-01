@@ -36,15 +36,18 @@ export interface Category {
 
 // User Types
 export type UserType = 'homeowner' | 'contractor' | 'designer' | 'worker';
+export type UserRole = 'customer' | 'admin' | 'employee' | 'super_admin';
 
 export interface User {
   id: string;
   phone: string;
   email?: string;
+  emailVerified?: boolean;
   name?: string;
   type: UserType;
+  role?: UserRole;
   languagePreference: 'ar' | 'en';
-  createdAt: string;
+  createdAt?: string;
 }
 
 // Address Types

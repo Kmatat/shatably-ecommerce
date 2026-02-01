@@ -2,45 +2,46 @@ import { Router } from 'express';
 import { z } from 'zod';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import prisma from '../config/database';
 import { validateBody } from '../middleware/validate';
 import { authenticate } from '../middleware/auth';
 import { AppError } from '../middleware/errorHandler';
-import { generateOtp, validateEgyptPhone } from '../utils/helpers';
+import { validateEgyptPhone } from '../utils/helpers';
 import otpService from '../services/otp.service';
 
 const router = Router();
 
-// Check if using email-based OTP
-const isEmailOtp = () => otpService.getProviderType() === 'email';
-
-// Validation schemas - support both phone and email based on OTP provider
-const sendOtpSchema = z.object({
-  phone: z.string().optional(),
-  email: z.string().email().optional(),
-}).refine((data) => {
-  // Require at least phone or email
-  return !!data.email || !!data.phone;
-}, {
-  message: 'Either email or phone is required',
-}).refine((data) => {
-  // If phone provided, validate it
-  if (data.phone && !validateEgyptPhone(data.phone)) {
-    return false;
-  }
-  return true;
-}, {
-  message: 'Invalid Egyptian phone number',
+// Validation schemas
+const registerSchema = z.object({
+  phone: z.string().refine((val) => validateEgyptPhone(val), {
+    message: 'Invalid Egyptian phone number',
+  }),
+  password: z.string().min(6, 'Password must be at least 6 characters'),
+  name: z.string().min(2, 'Name must be at least 2 characters').optional(),
+  email: z.string().email('Invalid email address').optional(),
+  type: z.enum(['homeowner', 'contractor', 'designer', 'worker']).optional(),
 });
 
-const verifyOtpSchema = z.object({
-  phone: z.string().optional(),
-  email: z.string().email().optional(),
-  code: z.string().length(6),
-}).refine((data) => {
-  return !!data.email || !!data.phone;
-}, {
-  message: 'Either email or phone is required',
+const loginSchema = z.object({
+  phone: z.string().refine((val) => validateEgyptPhone(val), {
+    message: 'Invalid Egyptian phone number',
+  }),
+  password: z.string().min(1, 'Password is required'),
+});
+
+const forgotPasswordSchema = z.object({
+  email: z.string().email('Invalid email address'),
+});
+
+const resetPasswordSchema = z.object({
+  token: z.string().min(1, 'Token is required'),
+  password: z.string().min(6, 'Password must be at least 6 characters'),
+});
+
+const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1, 'Current password is required'),
+  newPassword: z.string().min(6, 'New password must be at least 6 characters'),
 });
 
 const updateProfileSchema = z.object({
@@ -50,178 +51,69 @@ const updateProfileSchema = z.object({
   languagePreference: z.enum(['ar', 'en']).optional(),
 });
 
-// Password schemas
-const setPasswordSchema = z.object({
-  password: z.string().min(6).max(100),
-});
-
-const loginPasswordSchema = z.object({
-  phone: z.string().refine((val) => validateEgyptPhone(val), {
-    message: 'Invalid Egyptian phone number',
-  }),
-  password: z.string().min(1),
+const verifyEmailSchema = z.object({
+  token: z.string().min(1, 'Token is required'),
 });
 
 /**
- * GET /api/auth/otp-config
- * Get OTP provider configuration
+ * POST /api/auth/register
+ * Register a new user with phone and password
  */
-router.get('/otp-config', (req, res) => {
-  const providerType = otpService.getProviderType();
-  res.json({
-    success: true,
-    data: {
-      provider: providerType,
-      requiresEmail: providerType === 'email',
-      requiresPhone: providerType === 'sms',
-    },
-  });
-});
-
-/**
- * POST /api/auth/send-otp
- * Send OTP to phone number or email
- */
-router.post('/send-otp', validateBody(sendOtpSchema), async (req, res, next) => {
+router.post('/register', validateBody(registerSchema), async (req, res, next) => {
   try {
-    const { phone, email } = req.body;
-    const providerType = otpService.getProviderType();
+    const { phone, password, name, email, type } = req.body;
 
-    // Determine the recipient based on provider type
-    let recipient: string;
-    if (providerType === 'email') {
-      if (!email) {
-        throw new AppError('Email is required for email OTP', 400);
+    // Check if phone already exists
+    const existingUser = await prisma.user.findUnique({ where: { phone } });
+    if (existingUser) {
+      throw new AppError('Phone number already registered', 400);
+    }
+
+    // Check if email already exists (if provided)
+    if (email) {
+      const existingEmail = await prisma.user.findUnique({ where: { email } });
+      if (existingEmail) {
+        throw new AppError('Email already registered', 400);
       }
-      recipient = email;
-    } else {
-      if (!phone) {
-        throw new AppError('Phone number is required for SMS OTP', 400);
-      }
-      recipient = phone;
     }
 
-    // Generate OTP
-    const code = generateOtp(6);
-    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 12);
 
-    // Check if user exists (by phone or email)
-    let user = null;
-    if (phone) {
-      user = await prisma.user.findUnique({ where: { phone } });
-    }
-    if (!user && email) {
-      user = await prisma.user.findUnique({ where: { email } });
+    // Generate email verification token if email provided
+    let emailVerificationToken: string | null = null;
+    let emailVerificationExpires: Date | null = null;
+    if (email) {
+      emailVerificationToken = crypto.randomBytes(32).toString('hex');
+      emailVerificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
     }
 
-    // Create OTP record
-    await prisma.otpCode.create({
+    // Create user
+    const user = await prisma.user.create({
       data: {
-        phone: phone || email, // Store email in phone field if no phone (backward compatible)
-        code,
-        expiresAt,
-        userId: user?.id,
-      },
-    });
-
-    // Send OTP
-    const sent = await otpService.sendOtp(recipient, code);
-    if (!sent) {
-      throw new AppError('Failed to send OTP. Please try again.', 500);
-    }
-
-    res.json({
-      success: true,
-      message: providerType === 'email' ? 'OTP sent to your email' : 'OTP sent to your phone',
-      data: {
-        phone: phone || undefined,
-        email: email || undefined,
-        method: providerType,
-        expiresIn: 300, // 5 minutes in seconds
-        isNewUser: !user,
-      },
-    });
-  } catch (error) {
-    next(error);
-  }
-});
-
-/**
- * POST /api/auth/verify-otp
- * Verify OTP and login/register user
- */
-router.post('/verify-otp', validateBody(verifyOtpSchema), async (req, res, next) => {
-  try {
-    const { phone, email, code } = req.body;
-    const providerType = otpService.getProviderType();
-
-    // Determine the identifier (phone field stores both phone and email for backward compatibility)
-    const identifier = phone || email;
-    if (!identifier) {
-      throw new AppError('Phone or email is required', 400);
-    }
-
-    // Find valid OTP
-    const otp = await prisma.otpCode.findFirst({
-      where: {
-        phone: identifier,
-        code,
-        verified: false,
-        expiresAt: {
-          gt: new Date(),
-        },
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    });
-
-    if (!otp) {
-      throw new AppError('Invalid or expired OTP', 400);
-    }
-
-    // Mark OTP as verified
-    await prisma.otpCode.update({
-      where: { id: otp.id },
-      data: { verified: true },
-    });
-
-    // Find or create user
-    let user = null;
-    if (phone) {
-      user = await prisma.user.findUnique({ where: { phone } });
-    }
-    if (!user && email) {
-      user = await prisma.user.findUnique({ where: { email } });
-    }
-
-    const isNewUser = !user;
-
-    if (!user) {
-      // Create new user
-      const userData: {
-        phone: string;
-        email?: string;
-        role: 'customer';
-        type: 'homeowner';
-      } = {
-        phone: phone || `email_${Date.now()}`, // Generate placeholder if phone not provided
+        phone,
+        password: hashedPassword,
+        passwordSetAt: new Date(),
+        name: name || null,
+        email: email || null,
+        emailVerified: false,
+        emailVerificationToken,
+        emailVerificationExpires,
+        type: type || 'homeowner',
         role: 'customer',
-        type: 'homeowner',
-      };
+      },
+    });
 
-      if (email) {
-        userData.email = email;
-      }
+    // Create cart for new user
+    await prisma.cart.create({
+      data: { userId: user.id },
+    });
 
-      user = await prisma.user.create({ data: userData });
-
-      // Create cart for new user
-      await prisma.cart.create({
-        data: {
-          userId: user.id,
-        },
-      });
+    // Send email verification if email provided
+    if (email && emailVerificationToken) {
+      const verificationUrl = `${process.env.FRONTEND_URL}/verify-email?token=${emailVerificationToken}`;
+      // Send verification email (using OTP service for email sending)
+      await otpService.sendOtp(email, `Verify your email: ${verificationUrl}`);
     }
 
     // Generate JWT
@@ -233,17 +125,12 @@ router.post('/verify-otp', validateBody(verifyOtpSchema), async (req, res, next)
         role: user.role,
       },
       process.env.JWT_SECRET || 'secret',
-      {
-        expiresIn: process.env.JWT_EXPIRES_IN || '7d',
-      } as jwt.SignOptions
+      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' } as jwt.SignOptions
     );
 
-    // Check if user needs to set password (new users or users without password)
-    const requiresPassword = isNewUser || !user.password;
-
-    res.json({
+    res.status(201).json({
       success: true,
-      message: isNewUser ? 'Account created successfully' : 'Login successful',
+      message: 'Account created successfully',
       data: {
         token,
         user: {
@@ -251,14 +138,11 @@ router.post('/verify-otp', validateBody(verifyOtpSchema), async (req, res, next)
           phone: user.phone,
           name: user.name,
           email: user.email,
+          emailVerified: user.emailVerified,
           type: user.type,
           role: user.role,
           languagePreference: user.languagePreference,
-          hasPassword: !!user.password,
         },
-        isNewUser,
-        requiresPassword,
-        method: providerType,
       },
     });
   } catch (error) {
@@ -267,56 +151,15 @@ router.post('/verify-otp', validateBody(verifyOtpSchema), async (req, res, next)
 });
 
 /**
- * POST /api/auth/set-password
- * Set password after OTP verification (for new users or password reset)
- */
-router.post('/set-password', authenticate, validateBody(setPasswordSchema), async (req, res, next) => {
-  try {
-    const { password } = req.body;
-
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 12);
-
-    // Update user with password
-    const user = await prisma.user.update({
-      where: { id: req.user!.id },
-      data: {
-        password: hashedPassword,
-        passwordSetAt: new Date(),
-      },
-      select: {
-        id: true,
-        phone: true,
-        email: true,
-        name: true,
-        type: true,
-        role: true,
-        languagePreference: true,
-      },
-    });
-
-    res.json({
-      success: true,
-      message: 'Password set successfully',
-      data: { user },
-    });
-  } catch (error) {
-    next(error);
-  }
-});
-
-/**
- * POST /api/auth/login-password
+ * POST /api/auth/login
  * Login with phone number and password
  */
-router.post('/login-password', validateBody(loginPasswordSchema), async (req, res, next) => {
+router.post('/login', validateBody(loginSchema), async (req, res, next) => {
   try {
     const { phone, password } = req.body;
 
     // Find user by phone
-    const user = await prisma.user.findUnique({
-      where: { phone },
-    });
+    const user = await prisma.user.findUnique({ where: { phone } });
 
     if (!user) {
       throw new AppError('Invalid phone number or password', 401);
@@ -327,7 +170,7 @@ router.post('/login-password', validateBody(loginPasswordSchema), async (req, re
     }
 
     if (!user.password) {
-      throw new AppError('Password not set. Please login with OTP first.', 401);
+      throw new AppError('Please set a password first', 401);
     }
 
     // Verify password
@@ -345,9 +188,7 @@ router.post('/login-password', validateBody(loginPasswordSchema), async (req, re
         role: user.role,
       },
       process.env.JWT_SECRET || 'secret',
-      {
-        expiresIn: process.env.JWT_EXPIRES_IN || '7d',
-      } as jwt.SignOptions
+      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' } as jwt.SignOptions
     );
 
     res.json({
@@ -360,12 +201,260 @@ router.post('/login-password', validateBody(loginPasswordSchema), async (req, re
           phone: user.phone,
           name: user.name,
           email: user.email,
+          emailVerified: user.emailVerified,
           type: user.type,
           role: user.role,
           languagePreference: user.languagePreference,
-          hasPassword: true,
         },
       },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * POST /api/auth/forgot-password
+ * Send password reset email
+ */
+router.post('/forgot-password', validateBody(forgotPasswordSchema), async (req, res, next) => {
+  try {
+    const { email } = req.body;
+
+    // Find user by email
+    const user = await prisma.user.findUnique({ where: { email } });
+
+    // Always return success to prevent email enumeration
+    if (!user) {
+      res.json({
+        success: true,
+        message: 'If an account exists with this email, a password reset link will be sent',
+      });
+      return;
+    }
+
+    // Generate reset token
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const resetTokenHash = crypto.createHash('sha256').update(resetToken).digest('hex');
+    const resetExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+    // Save reset token to database
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordResetToken: resetTokenHash,
+        passwordResetExpires: resetExpires,
+      },
+    });
+
+    // Send reset email
+    const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
+    const message = `
+      رابط إعادة تعيين كلمة المرور: ${resetUrl}
+      Password reset link: ${resetUrl}
+
+      This link is valid for 1 hour.
+      هذا الرابط صالح لمدة ساعة واحدة.
+    `;
+
+    try {
+      await otpService.sendOtp(email, message);
+    } catch (emailError) {
+      // Clear reset token if email fails
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          passwordResetToken: null,
+          passwordResetExpires: null,
+        },
+      });
+      throw new AppError('Failed to send password reset email', 500);
+    }
+
+    res.json({
+      success: true,
+      message: 'If an account exists with this email, a password reset link will be sent',
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * POST /api/auth/reset-password
+ * Reset password with token
+ */
+router.post('/reset-password', validateBody(resetPasswordSchema), async (req, res, next) => {
+  try {
+    const { token, password } = req.body;
+
+    // Hash token to compare with stored hash
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
+    // Find user with valid reset token
+    const user = await prisma.user.findFirst({
+      where: {
+        passwordResetToken: tokenHash,
+        passwordResetExpires: {
+          gt: new Date(),
+        },
+      },
+    });
+
+    if (!user) {
+      throw new AppError('Invalid or expired reset token', 400);
+    }
+
+    // Hash new password
+    const hashedPassword = await bcrypt.hash(password, 12);
+
+    // Update password and clear reset token
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        password: hashedPassword,
+        passwordSetAt: new Date(),
+        passwordResetToken: null,
+        passwordResetExpires: null,
+      },
+    });
+
+    res.json({
+      success: true,
+      message: 'Password reset successful. You can now login with your new password.',
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * POST /api/auth/change-password
+ * Change password (authenticated)
+ */
+router.post('/change-password', authenticate, validateBody(changePasswordSchema), async (req, res, next) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    // Get user with password
+    const user = await prisma.user.findUnique({
+      where: { id: req.user!.id },
+    });
+
+    if (!user || !user.password) {
+      throw new AppError('User not found', 404);
+    }
+
+    // Verify current password
+    const isValid = await bcrypt.compare(currentPassword, user.password);
+    if (!isValid) {
+      throw new AppError('Current password is incorrect', 400);
+    }
+
+    // Hash new password
+    const hashedPassword = await bcrypt.hash(newPassword, 12);
+
+    // Update password
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        password: hashedPassword,
+        passwordSetAt: new Date(),
+      },
+    });
+
+    res.json({
+      success: true,
+      message: 'Password changed successfully',
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * POST /api/auth/verify-email
+ * Verify email address with token
+ */
+router.post('/verify-email', validateBody(verifyEmailSchema), async (req, res, next) => {
+  try {
+    const { token } = req.body;
+
+    // Find user with valid verification token
+    const user = await prisma.user.findFirst({
+      where: {
+        emailVerificationToken: token,
+        emailVerificationExpires: {
+          gt: new Date(),
+        },
+      },
+    });
+
+    if (!user) {
+      throw new AppError('Invalid or expired verification token', 400);
+    }
+
+    // Mark email as verified
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        emailVerified: true,
+        emailVerificationToken: null,
+        emailVerificationExpires: null,
+      },
+    });
+
+    res.json({
+      success: true,
+      message: 'Email verified successfully',
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * POST /api/auth/resend-verification
+ * Resend email verification link
+ */
+router.post('/resend-verification', authenticate, async (req, res, next) => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: req.user!.id },
+    });
+
+    if (!user) {
+      throw new AppError('User not found', 404);
+    }
+
+    if (!user.email) {
+      throw new AppError('No email address associated with this account', 400);
+    }
+
+    if (user.emailVerified) {
+      throw new AppError('Email is already verified', 400);
+    }
+
+    // Generate new verification token
+    const emailVerificationToken = crypto.randomBytes(32).toString('hex');
+    const emailVerificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+    // Update user with new token
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        emailVerificationToken,
+        emailVerificationExpires,
+      },
+    });
+
+    // Send verification email
+    const verificationUrl = `${process.env.FRONTEND_URL}/verify-email?token=${emailVerificationToken}`;
+    await otpService.sendOtp(user.email, `Verify your email: ${verificationUrl}`);
+
+    res.json({
+      success: true,
+      message: 'Verification email sent',
     });
   } catch (error) {
     next(error);
@@ -384,6 +473,7 @@ router.get('/me', authenticate, async (req, res, next) => {
         id: true,
         phone: true,
         email: true,
+        emailVerified: true,
         name: true,
         type: true,
         role: true,
@@ -420,6 +510,34 @@ router.put('/profile', authenticate, validateBody(updateProfileSchema), async (r
   try {
     const { name, email, type, languagePreference } = req.body;
 
+    // If email is being changed, check if it's already in use
+    if (email) {
+      const existingEmail = await prisma.user.findFirst({
+        where: {
+          email,
+          id: { not: req.user!.id },
+        },
+      });
+      if (existingEmail) {
+        throw new AppError('Email already in use', 400);
+      }
+    }
+
+    // Check if email is being changed
+    const currentUser = await prisma.user.findUnique({
+      where: { id: req.user!.id },
+    });
+
+    const emailChanged = email && email !== currentUser?.email;
+
+    // Generate new verification token if email changed
+    let emailVerificationToken: string | null = null;
+    let emailVerificationExpires: Date | null = null;
+    if (emailChanged) {
+      emailVerificationToken = crypto.randomBytes(32).toString('hex');
+      emailVerificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    }
+
     const user = await prisma.user.update({
       where: { id: req.user!.id },
       data: {
@@ -427,11 +545,17 @@ router.put('/profile', authenticate, validateBody(updateProfileSchema), async (r
         ...(email && { email }),
         ...(type && { type }),
         ...(languagePreference && { languagePreference }),
+        ...(emailChanged && {
+          emailVerified: false,
+          emailVerificationToken,
+          emailVerificationExpires,
+        }),
       },
       select: {
         id: true,
         phone: true,
         email: true,
+        emailVerified: true,
         name: true,
         type: true,
         role: true,
@@ -440,9 +564,17 @@ router.put('/profile', authenticate, validateBody(updateProfileSchema), async (r
       },
     });
 
+    // Send verification email if email changed
+    if (emailChanged && email && emailVerificationToken) {
+      const verificationUrl = `${process.env.FRONTEND_URL}/verify-email?token=${emailVerificationToken}`;
+      await otpService.sendOtp(email, `Verify your email: ${verificationUrl}`);
+    }
+
     res.json({
       success: true,
-      message: 'Profile updated successfully',
+      message: emailChanged
+        ? 'Profile updated. Please verify your new email address.'
+        : 'Profile updated successfully',
       data: user,
     });
   } catch (error) {
@@ -464,6 +596,68 @@ router.delete('/account', authenticate, async (req, res, next) => {
     res.json({
       success: true,
       message: 'Account deleted successfully',
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ============ LEGACY OTP ROUTES (kept for backward compatibility) ============
+
+/**
+ * POST /api/auth/login-password (legacy alias for /login)
+ */
+router.post('/login-password', validateBody(loginSchema), async (req, res, next) => {
+  try {
+    const { phone, password } = req.body;
+
+    const user = await prisma.user.findUnique({ where: { phone } });
+
+    if (!user) {
+      throw new AppError('Invalid phone number or password', 401);
+    }
+
+    if (!user.isActive) {
+      throw new AppError('Account is deactivated', 401);
+    }
+
+    if (!user.password) {
+      throw new AppError('Please set a password first', 401);
+    }
+
+    const isValid = await bcrypt.compare(password, user.password);
+    if (!isValid) {
+      throw new AppError('Invalid phone number or password', 401);
+    }
+
+    const token = jwt.sign(
+      {
+        userId: user.id,
+        phone: user.phone,
+        email: user.email,
+        role: user.role,
+      },
+      process.env.JWT_SECRET || 'secret',
+      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' } as jwt.SignOptions
+    );
+
+    res.json({
+      success: true,
+      message: 'Login successful',
+      data: {
+        token,
+        user: {
+          id: user.id,
+          phone: user.phone,
+          name: user.name,
+          email: user.email,
+          emailVerified: user.emailVerified,
+          type: user.type,
+          role: user.role,
+          languagePreference: user.languagePreference,
+          hasPassword: true,
+        },
+      },
     });
   } catch (error) {
     next(error);
