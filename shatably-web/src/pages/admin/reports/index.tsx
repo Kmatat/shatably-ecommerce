@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import AdminLayout from '@/components/AdminLayout';
-import { useLanguageStore } from '@/lib/store';
+import { useLanguageStore, useAuthStore } from '@/lib/store';
 import { BarChart3, TrendingUp, TrendingDown, DollarSign, ShoppingCart, Users, Package, Calendar, Download } from 'lucide-react';
 
 interface ReportData {
@@ -34,6 +34,7 @@ interface ReportData {
 
 export default function ReportsPage() {
   const { language } = useLanguageStore();
+  const { token } = useAuthStore();
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState('week');
   const [reportData, setReportData] = useState<ReportData>({
@@ -95,7 +96,7 @@ export default function ReportsPage() {
     try {
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/reports?range=${dateRange}`, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${token}`,
         },
       });
       if (response.ok) {

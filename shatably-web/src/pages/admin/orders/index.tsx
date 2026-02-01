@@ -18,7 +18,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import AdminLayout from '@/components/AdminLayout';
-import { useLanguageStore } from '@/lib/store';
+import { useLanguageStore, useAuthStore } from '@/lib/store';
 import { formatPrice, formatDate, cn } from '@/lib/utils';
 
 interface Order {
@@ -38,6 +38,7 @@ type OrderStatus = 'all' | 'pending' | 'confirmed' | 'processing' | 'ready' | 'i
 
 export default function AdminOrdersPage() {
   const { language } = useLanguageStore();
+  const { token } = useAuthStore();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -153,7 +154,7 @@ export default function AdminOrdersPage() {
       if (statusFilter !== 'all') params.append('status', statusFilter);
 
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/orders?${params}`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (response.ok) {
         const data = await response.json();
@@ -174,7 +175,7 @@ export default function AdminOrdersPage() {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ status: newStatus }),
       });

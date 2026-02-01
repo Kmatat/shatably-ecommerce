@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import AdminLayout from '@/components/AdminLayout';
-import { useLanguageStore } from '@/lib/store';
+import { useLanguageStore, useAuthStore } from '@/lib/store';
 import { FileText, Image, Megaphone, HelpCircle, Info, FileCheck, Shield, Plus, Edit2, Trash2, X, Save, Eye, EyeOff } from 'lucide-react';
 
 interface Content {
@@ -32,6 +32,7 @@ const contentTypes = [
 
 export default function ContentManagementPage() {
   const { language } = useLanguageStore();
+  const { token } = useAuthStore();
   const [contents, setContents] = useState<Content[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedType, setSelectedType] = useState('all');
@@ -102,7 +103,7 @@ export default function ContentManagementPage() {
     setLoading(true);
     try {
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/content?type=${selectedType}`, {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+        headers: { 'Authorization': `Bearer ${token}` },
       });
       if (response.ok) {
         const data = await response.json();
@@ -163,7 +164,7 @@ export default function ContentManagementPage() {
         method: editingContent ? 'PUT' : 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({
           ...formData,
@@ -188,7 +189,7 @@ export default function ContentManagementPage() {
     try {
       await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/content/${id}`, {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+        headers: { 'Authorization': `Bearer ${token}` },
       });
       fetchContents();
     } catch (error) {
@@ -202,7 +203,7 @@ export default function ContentManagementPage() {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({ isActive: !content.isActive }),
       });

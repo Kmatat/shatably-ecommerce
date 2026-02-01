@@ -13,7 +13,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import AdminLayout from '@/components/AdminLayout';
-import { useLanguageStore } from '@/lib/store';
+import { useLanguageStore, useAuthStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
 
 interface Category {
@@ -74,6 +74,7 @@ export default function ProductEditPage() {
   const { id } = router.query;
   const isNew = id === 'new';
   const { language } = useLanguageStore();
+  const { token } = useAuthStore();
 
   const [loading, setLoading] = useState(!isNew);
   const [saving, setSaving] = useState(false);
@@ -151,7 +152,7 @@ export default function ProductEditPage() {
   const fetchCategories = async () => {
     try {
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/categories`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (response.ok) {
         const data = await response.json();
@@ -165,7 +166,7 @@ export default function ProductEditPage() {
   const fetchBrands = async () => {
     try {
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/brands`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (response.ok) {
         const data = await response.json();
@@ -180,7 +181,7 @@ export default function ProductEditPage() {
     setLoading(true);
     try {
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/products/${id}`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (response.ok) {
         const data = await response.json();
@@ -236,7 +237,7 @@ export default function ProductEditPage() {
         method: isNew ? 'POST' : 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(payload),
       });

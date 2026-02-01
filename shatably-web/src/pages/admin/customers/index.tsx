@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import AdminLayout from '@/components/AdminLayout';
-import { useLanguageStore } from '@/lib/store';
+import { useLanguageStore, useAuthStore } from '@/lib/store';
 import { Search, Filter, Eye, Phone, Mail, MapPin, ShoppingBag, Calendar } from 'lucide-react';
 
 interface Customer {
@@ -17,6 +17,7 @@ interface Customer {
 
 export default function CustomersPage() {
   const { language } = useLanguageStore();
+  const { token } = useAuthStore();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -53,7 +54,7 @@ export default function CustomersPage() {
     try {
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/customers`, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${token}`,
         },
       });
       if (response.ok) {

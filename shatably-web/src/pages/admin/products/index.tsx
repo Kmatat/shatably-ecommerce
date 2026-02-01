@@ -20,7 +20,7 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import AdminLayout from '@/components/AdminLayout';
-import { useLanguageStore } from '@/lib/store';
+import { useLanguageStore, useAuthStore } from '@/lib/store';
 import { formatPrice, cn } from '@/lib/utils';
 
 interface Product {
@@ -49,6 +49,7 @@ interface Category {
 
 export default function AdminProductsPage() {
   const { language } = useLanguageStore();
+  const { token } = useAuthStore();
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
@@ -138,7 +139,7 @@ export default function AdminProductsPage() {
   const fetchCategories = async () => {
     try {
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/categories`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (response.ok) {
         const data = await response.json();
@@ -161,7 +162,7 @@ export default function AdminProductsPage() {
       if (stockFilter !== 'all') params.append('stock', stockFilter);
 
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/products?${params}`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (response.ok) {
         const data = await response.json();
@@ -181,7 +182,7 @@ export default function AdminProductsPage() {
     try {
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/products/${id}`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (response.ok) {
         fetchProducts();
@@ -195,7 +196,7 @@ export default function AdminProductsPage() {
     try {
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/products/${id}/toggle`, {
         method: 'PATCH',
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (response.ok) {
         fetchProducts();

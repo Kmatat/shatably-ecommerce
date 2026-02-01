@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import AdminLayout from '@/components/AdminLayout';
-import { useLanguageStore } from '@/lib/store';
+import { useLanguageStore, useAuthStore } from '@/lib/store';
 import { Truck, Plus, Search, Phone, MapPin, Package, Edit, Trash2, X, Check } from 'lucide-react';
 
 interface Driver {
@@ -17,6 +17,7 @@ interface Driver {
 
 export default function DeliveryPage() {
   const { language } = useLanguageStore();
+  const { token } = useAuthStore();
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -66,7 +67,7 @@ export default function DeliveryPage() {
     try {
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/drivers`, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${token}`,
         },
       });
       if (response.ok) {
@@ -92,7 +93,7 @@ export default function DeliveryPage() {
         method,
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify(formData),
       });
@@ -112,7 +113,7 @@ export default function DeliveryPage() {
       await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/drivers/${id}`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${token}`,
         },
       });
       fetchDrivers();

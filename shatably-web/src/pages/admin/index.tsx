@@ -16,7 +16,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import AdminLayout from '@/components/AdminLayout';
-import { useLanguageStore } from '@/lib/store';
+import { useLanguageStore, useAuthStore } from '@/lib/store';
 import { formatPrice, cn } from '@/lib/utils';
 
 interface DashboardData {
@@ -39,6 +39,7 @@ interface DashboardData {
 
 export default function AdminDashboard() {
   const { language } = useLanguageStore();
+  const { token } = useAuthStore();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<DashboardData | null>(null);
 
@@ -134,7 +135,7 @@ export default function AdminDashboard() {
   const fetchDashboard = async () => {
     try {
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/dashboard`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (response.ok) {
         const result = await response.json();

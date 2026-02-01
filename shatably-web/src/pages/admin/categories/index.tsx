@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import AdminLayout from '@/components/AdminLayout';
-import { useLanguageStore } from '@/lib/store';
+import { useLanguageStore, useAuthStore } from '@/lib/store';
 import { FolderTree, Plus, Edit2, Trash2, X, Save, ChevronRight, Package, Eye, EyeOff, GripVertical } from 'lucide-react';
 
 interface Category {
@@ -21,6 +21,7 @@ interface Category {
 
 export default function CategoriesPage() {
   const { language } = useLanguageStore();
+  const { token } = useAuthStore();
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -67,7 +68,7 @@ export default function CategoriesPage() {
     setLoading(true);
     try {
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/categories`, {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+        headers: { 'Authorization': `Bearer ${token}` },
       });
       if (response.ok) {
         const data = await response.json();
@@ -116,7 +117,7 @@ export default function CategoriesPage() {
         method: editingCategory ? 'PUT' : 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({
           ...formData,
@@ -140,7 +141,7 @@ export default function CategoriesPage() {
     try {
       await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/categories/${id}`, {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+        headers: { 'Authorization': `Bearer ${token}` },
       });
       fetchCategories();
     } catch (error) {

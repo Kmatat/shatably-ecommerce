@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import AdminLayout from '@/components/AdminLayout';
-import { useLanguageStore } from '@/lib/store';
+import { useLanguageStore, useAuthStore } from '@/lib/store';
 import { Users, Shield, UserCog, Crown, Plus, Edit2, Trash2, X, Save, Check, UserCheck, UserX } from 'lucide-react';
 
 interface AdminUser {
@@ -35,6 +35,7 @@ const roles = [
 
 export default function AdminUsersPage() {
   const { language } = useLanguageStore();
+  const { token } = useAuthStore();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedRole, setSelectedRole] = useState('all');
@@ -92,7 +93,7 @@ export default function AdminUsersPage() {
     setLoading(true);
     try {
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/users?role=${selectedRole}`, {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+        headers: { 'Authorization': `Bearer ${token}` },
       });
       if (response.ok) {
         const data = await response.json();
@@ -141,7 +142,7 @@ export default function AdminUsersPage() {
         method: editingUser ? 'PUT' : 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({
           ...formData,
@@ -164,7 +165,7 @@ export default function AdminUsersPage() {
     try {
       await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/users/${id}`, {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+        headers: { 'Authorization': `Bearer ${token}` },
       });
       fetchUsers();
     } catch (error) {
