@@ -19,7 +19,7 @@ import AdminLayout from '@/components/AdminLayout';
 import { useLanguageStore, useAuthStore } from '@/lib/store';
 import { formatDate, cn } from '@/lib/utils';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 
 interface MaterialList {
   id: string;
@@ -141,20 +141,23 @@ export default function AdminMaterialListsPage() {
     return fileTypeIcons[ext] || '📄';
   };
 
-  const fetchMaterialLists = async () => {
-    if (!token) return;
+  const fetchMaterialLists = async (currentToken: string | null, currentStatus: string, currentSearch: string) => {
+    if (!currentToken) {
+      setLoading(false);
+      return;
+    }
 
     setLoading(true);
     setError('');
     try {
       const params = new URLSearchParams();
-      if (statusFilter !== 'all') params.append('status', statusFilter);
-      if (searchQuery) params.append('search', searchQuery);
+      if (currentStatus !== 'all') params.append('status', currentStatus);
+      if (currentSearch) params.append('search', currentSearch);
 
       const response = await fetch(
         `${API_URL}/admin/material-lists?${params.toString()}`,
         {
-          headers: { Authorization: `Bearer ${token}` },
+          headers: { Authorization: `Bearer ${currentToken}` },
         }
       );
 
@@ -163,24 +166,30 @@ export default function AdminMaterialListsPage() {
       const data = await response.json();
       setMaterialLists(data.data || []);
     } catch (err) {
-      setError(t.loadError);
+      setError(language === 'ar' ? 'حدث خطأ أثناء تحميل البيانات' : 'Error loading data');
       console.error('Error fetching material lists:', err);
     } finally {
       setLoading(false);
     }
   };
 
+  // Fetch on mount and when token/statusFilter changes
   useEffect(() => {
-    fetchMaterialLists();
+    fetchMaterialLists(token, statusFilter, searchQuery);
   }, [token, statusFilter]);
 
   // Debounced search
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (token) fetchMaterialLists();
+      if (token) fetchMaterialLists(token, statusFilter, searchQuery);
     }, 300);
     return () => clearTimeout(timer);
   }, [searchQuery]);
+
+  // Manual refresh handler
+  const handleRefresh = () => {
+    fetchMaterialLists(token, statusFilter, searchQuery);
+  };
 
   const filteredLists = materialLists.filter((list) => {
     const matchesSearch =
@@ -226,7 +235,7 @@ export default function AdminMaterialListsPage() {
             </div>
 
             <button
-              onClick={fetchMaterialLists}
+              onClick={handleRefresh}
               className="flex items-center gap-2 px-4 py-2.5 border rounded-lg hover:bg-gray-50"
             >
               <RefreshCw className={cn('w-5 h-5', loading && 'animate-spin')} />

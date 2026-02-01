@@ -5,7 +5,7 @@ import { X, Phone, Loader2, ArrowLeft, ArrowRight, Lock, Eye, EyeOff } from 'luc
 import { useAuthStore, useUIStore, useLanguageStore } from '@/lib/store';
 import { cn, validateEgyptPhone } from '@/lib/utils';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 
 export default function AuthModal() {
   const { language } = useLanguageStore();
