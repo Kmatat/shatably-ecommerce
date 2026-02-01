@@ -31,7 +31,7 @@ function transformProduct(p: ApiProduct): Product {
     descriptionEn: '',
     price: p.price,
     originalPrice: p.originalPrice || undefined,
-    images: p.images && p.images.length > 0 ? p.images : ['/placeholder-product.jpg'],
+    images: p.images && p.images.length > 0 ? p.images : ['https://placehold.co/600x600/e2e8f0/64748b?text=No+Image'],
     categoryId: p.categoryId || '',
     stock: p.stock,
     unit: p.unit as any,

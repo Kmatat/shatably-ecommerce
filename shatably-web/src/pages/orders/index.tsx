@@ -1,41 +1,28 @@
 import Head from 'next/head';
 import Link from 'next/link';
-import { Package, ChevronLeft, ChevronRight, Clock, Truck, CheckCircle, XCircle } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Package, ChevronLeft, ChevronRight, Clock, Truck, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import { Header, Footer } from '@/components';
 import { useLanguageStore, useAuthStore, useUIStore } from '@/lib/store';
 import { formatPrice, formatDate, cn } from '@/lib/utils';
 import type { OrderStatus } from '@/types';
 
-// Mock orders data
-const mockOrders = [
-  {
-    id: 'SH-ABC123',
-    status: 'delivered' as OrderStatus,
-    total: 4500,
-    itemsCount: 5,
-    createdAt: '2024-01-20',
-    deliveredAt: '2024-01-21',
-  },
-  {
-    id: 'SH-DEF456',
-    status: 'in_transit' as OrderStatus,
-    total: 12300,
-    itemsCount: 12,
-    createdAt: '2024-01-24',
-  },
-  {
-    id: 'SH-GHI789',
-    status: 'processing' as OrderStatus,
-    total: 8750,
-    itemsCount: 8,
-    createdAt: '2024-01-25',
-  },
-];
+interface OrderItem {
+  id: string;
+  orderNumber: string;
+  status: OrderStatus;
+  total: number;
+  itemsCount: number;
+  createdAt: string;
+  deliveredAt?: string;
+}
 
 export default function OrdersPage() {
   const { language } = useLanguageStore();
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, token } = useAuthStore();
   const { openAuthModal } = useUIStore();
+  const [orders, setOrders] = useState<OrderItem[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const content = {
     ar: {
@@ -52,6 +39,7 @@ export default function OrdersPage() {
       reorder: 'إعادة الطلب',
       loginRequired: 'يرجى تسجيل الدخول لعرض طلباتك',
       login: 'تسجيل الدخول',
+      loading: 'جاري التحميل...',
       statuses: {
         pending: 'قيد الانتظار',
         confirmed: 'تم التأكيد',
@@ -76,6 +64,7 @@ export default function OrdersPage() {
       reorder: 'Reorder',
       loginRequired: 'Please login to view your orders',
       login: 'Login',
+      loading: 'Loading...',
       statuses: {
         pending: 'Pending',
         confirmed: 'Confirmed',
@@ -89,6 +78,44 @@ export default function OrdersPage() {
   };
 
   const t = content[language];
+
+  // Fetch orders from API
+  useEffect(() => {
+    const fetchOrders = async () => {
+      if (!isAuthenticated || !token) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/orders`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const fetchedOrders = (data.data || []).map((order: any) => ({
+            id: order.id,
+            orderNumber: order.orderNumber,
+            status: order.status,
+            total: Number(order.total),
+            itemsCount: order.items?.length || order.itemsCount || 0,
+            createdAt: order.createdAt,
+            deliveredAt: order.deliveredAt,
+          }));
+          setOrders(fetchedOrders);
+        }
+      } catch (error) {
+        console.error('Failed to fetch orders:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchOrders();
+  }, [isAuthenticated, token]);
 
   const getStatusIcon = (status: OrderStatus) => {
     switch (status) {
@@ -167,7 +194,12 @@ export default function OrdersPage() {
             {t.title}
           </h1>
 
-          {mockOrders.length === 0 ? (
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-8 h-8 animate-spin text-primary-500" />
+              <span className="ms-2 text-gray-500">{t.loading}</span>
+            </div>
+          ) : orders.length === 0 ? (
             <div className="bg-white rounded-xl shadow-sm p-12 text-center">
               <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
                 <Package className="w-10 h-10 text-gray-400" />
@@ -180,7 +212,7 @@ export default function OrdersPage() {
             </div>
           ) : (
             <div className="space-y-4">
-              {mockOrders.map((order) => {
+              {orders.map((order) => {
                 const StatusIcon = getStatusIcon(order.status);
                 return (
                   <div key={order.id} className="bg-white rounded-xl shadow-sm p-6">
@@ -193,7 +225,7 @@ export default function OrdersPage() {
                         <div>
                           <div className="flex items-center gap-3 mb-1">
                             <span className="font-semibold text-gray-900">
-                              {t.orderNumber}: {order.id}
+                              {t.orderNumber}: {order.orderNumber || order.id}
                             </span>
                             <span className={cn(
                               'inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium',

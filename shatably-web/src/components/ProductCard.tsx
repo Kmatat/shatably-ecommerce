@@ -21,7 +21,7 @@ export default function ProductCard({ product, variant = 'default' }: ProductCar
   const name = language === 'ar' ? product.nameAr : product.nameEn;
   const imageUrl = product.images && product.images.length > 0 && product.images[0]
     ? product.images[0]
-    : '/placeholder-product.jpg';
+    : 'https://placehold.co/600x600/e2e8f0/64748b?text=No+Image';
   const hasDiscount = product.originalPrice && product.originalPrice > product.price;
   const discountPercent = hasDiscount
     ? Math.round(((product.originalPrice! - product.price) / product.originalPrice!) * 100)
