@@ -31,8 +31,24 @@ const PORT = process.env.PORT || 3001;
 app.use(helmet());
 
 // CORS configuration
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'https://shatably-ecommerce-six.vercel.app',
+  process.env.FRONTEND_URL?.replace(/\/$/, ''), // Remove trailing slash if present
+].filter(Boolean);
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  origin: (origin, callback) => {
+    // Allow requests with no origin (mobile apps, Postman, etc.)
+    if (!origin) return callback(null, true);
+    // Check if origin is in allowed list (without trailing slashes)
+    const normalizedOrigin = origin.replace(/\/$/, '');
+    if (allowedOrigins.some(allowed => allowed === normalizedOrigin)) {
+      return callback(null, true);
+    }
+    callback(new Error('Not allowed by CORS'));
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Accept-Language'],
