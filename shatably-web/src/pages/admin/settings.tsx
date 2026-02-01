@@ -12,13 +12,14 @@ import {
   Loader2,
 } from 'lucide-react';
 import AdminLayout from '@/components/AdminLayout';
-import { useLanguageStore } from '@/lib/store';
+import { useLanguageStore, useAuthStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
 
 type SettingsTab = 'general' | 'delivery' | 'payment' | 'notifications';
 
 export default function AdminSettingsPage() {
   const { language } = useLanguageStore();
+  const { token } = useAuthStore();
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -64,10 +65,14 @@ export default function AdminSettingsPage() {
   // Fetch settings on mount
   useEffect(() => {
     const fetchSettings = async () => {
+      if (!token) {
+        setIsLoading(false);
+        return;
+      }
       try {
         const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/settings`, {
           headers: {
-            Authorization: `Bearer ${localStorage.getItem('token')}`,
+            Authorization: `Bearer ${token}`,
           },
         });
         if (response.ok) {
@@ -88,7 +93,7 @@ export default function AdminSettingsPage() {
       }
     };
     fetchSettings();
-  }, []);
+  }, [token]);
 
   const content = {
     ar: {
@@ -217,6 +222,10 @@ export default function AdminSettingsPage() {
   ];
 
   const handleSave = async () => {
+    if (!token) {
+      setSaveMessage({ type: 'error', text: t.error });
+      return;
+    }
     setIsSaving(true);
     setSaveMessage(null);
     try {
@@ -224,7 +233,7 @@ export default function AdminSettingsPage() {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           general: settings.general,
@@ -236,7 +245,8 @@ export default function AdminSettingsPage() {
       if (response.ok) {
         setSaveMessage({ type: 'success', text: t.saved });
       } else {
-        throw new Error('Failed to save');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Failed to save');
       }
     } catch (error) {
       console.error('Failed to save settings:', error);
