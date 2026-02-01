@@ -1,6 +1,6 @@
 import Head from 'next/head';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   User,
   Package,
@@ -17,10 +17,12 @@ import {
   Bell,
   Globe,
   Camera,
+  Loader2,
 } from 'lucide-react';
 import { Header, Footer } from '@/components';
 import { useLanguageStore, useAuthStore, useUIStore } from '@/lib/store';
 import { cn, formatPhone } from '@/lib/utils';
+import { Address } from '@/types';
 
 type TabType = 'profile' | 'addresses' | 'settings';
 
@@ -33,6 +35,8 @@ export default function AccountPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [editedName, setEditedName] = useState(user?.name || '');
   const [editedEmail, setEditedEmail] = useState(user?.email || '');
+  const [addresses, setAddresses] = useState<Address[]>([]);
+  const [loadingAddresses, setLoadingAddresses] = useState(false);
 
   const content = {
     ar: {
@@ -137,29 +141,33 @@ export default function AccountPage() {
     window.location.href = '/';
   };
 
-  // Mock addresses
-  const addresses = [
-    {
-      id: '1',
-      label: language === 'ar' ? 'المنزل' : 'Home',
-      fullAddress: language === 'ar' 
-        ? 'شارع التحرير، الدقي، الجيزة' 
-        : 'Tahrir Street, Dokki, Giza',
-      contactName: language === 'ar' ? 'أحمد محمد' : 'Ahmed Mohamed',
-      contactPhone: '01012345678',
-      isDefault: true,
-    },
-    {
-      id: '2',
-      label: language === 'ar' ? 'موقع المشروع' : 'Project Site',
-      fullAddress: language === 'ar'
-        ? 'التجمع الخامس، القاهرة الجديدة'
-        : '5th Settlement, New Cairo',
-      contactName: language === 'ar' ? 'أحمد محمد' : 'Ahmed Mohamed',
-      contactPhone: '01012345678',
-      isDefault: false,
-    },
-  ];
+  // Fetch addresses from API
+  useEffect(() => {
+    const fetchAddresses = async () => {
+      if (!isAuthenticated) return;
+
+      setLoadingAddresses(true);
+      try {
+        const token = localStorage.getItem('auth-token');
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/addresses`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setAddresses(data.data || []);
+        }
+      } catch (error) {
+        console.error('Failed to fetch addresses:', error);
+      } finally {
+        setLoadingAddresses(false);
+      }
+    };
+
+    fetchAddresses();
+  }, [isAuthenticated]);
 
   if (!isAuthenticated) {
     return (
@@ -392,7 +400,11 @@ export default function AccountPage() {
                     </button>
                   </div>
 
-                  {addresses.length > 0 ? (
+                  {loadingAddresses ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="w-8 h-8 animate-spin text-primary-500" />
+                    </div>
+                  ) : addresses.length > 0 ? (
                     <div className="space-y-4">
                       {addresses.map((address) => (
                         <div
