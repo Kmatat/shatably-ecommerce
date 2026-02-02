@@ -192,13 +192,12 @@ router.post('/items', validateBody(addToCartSchema), async (req, res, next) => {
       });
     }
 
-    // Check if item already in cart
-    const existingItem = await prisma.cartItem.findUnique({
+    // Check if item already in cart (without variation)
+    const existingItem = await prisma.cartItem.findFirst({
       where: {
-        cartId_productId: {
-          cartId: cart.id,
-          productId,
-        },
+        cartId: cart.id,
+        productId,
+        variationId: null,
       },
     });
 
@@ -260,12 +259,11 @@ router.put('/items/:productId', validateBody(updateCartItemSchema), async (req, 
       throw new AppError('Cart not found', 404);
     }
 
-    const cartItem = await prisma.cartItem.findUnique({
+    const cartItem = await prisma.cartItem.findFirst({
       where: {
-        cartId_productId: {
-          cartId: cart.id,
-          productId,
-        },
+        cartId: cart.id,
+        productId,
+        variationId: null,
       },
       include: { product: true },
     });

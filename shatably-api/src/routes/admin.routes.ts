@@ -674,8 +674,10 @@ router.patch('/material-lists/:id', async (req, res, next) => {
 // ============ CATEGORIES ============
 const categorySchema = z.object({
   nameAr: z.string().min(2), nameEn: z.string().min(2),
-  icon: z.string().optional(), image: z.string().url().optional(),
-  parentId: z.string().uuid().optional(), sortOrder: z.number().int().optional(),
+  icon: z.string().nullable().optional(),
+  image: z.string().url().nullable().optional().or(z.literal('')).transform(v => v === '' ? null : v),
+  parentId: z.string().uuid().nullable().optional().or(z.literal('')).transform(v => v === '' ? null : v),
+  sortOrder: z.number().int().optional(),
 });
 
 router.post('/categories', validateBody(categorySchema), async (req, res, next) => {
@@ -1228,13 +1230,12 @@ router.post('/material-lists/:id/add-to-cart', async (req, res, next) => {
 
         if (!product || !product.isActive) continue;
 
-        // Check if already in cart
-        const existingItem = await tx.cartItem.findUnique({
+        // Check if already in cart (without variation)
+        const existingItem = await tx.cartItem.findFirst({
           where: {
-            cartId_productId: {
-              cartId: cart!.id,
-              productId: item.productId,
-            },
+            cartId: cart!.id,
+            productId: item.productId,
+            variationId: null,
           },
         });
 
