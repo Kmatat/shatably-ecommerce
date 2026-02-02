@@ -3,7 +3,7 @@ import { useLanguageStore } from '@/lib/store';
 import {
   Header,
   Footer,
-  HeroSection,
+  BannerCarousel,
   CategorySection,
   FeaturedProducts,
   DealsSection,
@@ -36,8 +36,8 @@ export default function Home() {
         <Header />
         
         <main className="flex-1">
-          {/* Hero Section */}
-          <HeroSection />
+          {/* Hero Banner Carousel */}
+          <BannerCarousel />
           
           {/* Categories */}
           <CategorySection />

@@ -121,31 +121,41 @@ export default function CategoriesPage() {
         },
         body: JSON.stringify({
           ...formData,
-          parentId: formData.parentId || undefined,
-          icon: formData.icon || undefined,
-          image: formData.image || undefined,
+          parentId: formData.parentId || null,
+          icon: formData.icon || null,
+          image: formData.image || null,
         }),
       });
 
       if (response.ok) {
         setShowModal(false);
         fetchCategories();
+      } else {
+        const errorData = await response.json();
+        alert(errorData.message || 'Failed to save category');
       }
     } catch (error) {
       console.error('Failed to save category:', error);
+      alert('Failed to save category. Please try again.');
     }
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm(t.confirmDelete[language])) return;
     try {
-      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/categories/${id}`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/categories/${id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` },
       });
-      fetchCategories();
+      if (response.ok) {
+        fetchCategories();
+      } else {
+        const errorData = await response.json();
+        alert(errorData.message || 'Failed to delete category');
+      }
     } catch (error) {
       console.error('Failed to delete category:', error);
+      alert('Failed to delete category. Please try again.');
     }
   };
 
