@@ -519,7 +519,10 @@ router.get('/customers', async (req, res, next) => {
         select: {
           id: true, phone: true, name: true, email: true, type: true,
           isActive: true, createdAt: true,
-          _count: { select: { orders: true } },
+          orders: {
+            select: { total: true, createdAt: true },
+            orderBy: { createdAt: 'desc' },
+          },
         },
       }),
       prisma.user.count({ where }),
@@ -527,10 +530,15 @@ router.get('/customers', async (req, res, next) => {
 
     res.json({
       success: true,
-      ...createPaginatedResponse(customers.map((c) => ({
-        id: c.id, phone: c.phone, name: c.name, email: c.email, type: c.type,
-        isActive: c.isActive, createdAt: c.createdAt, ordersCount: c._count.orders,
-      })), total, page, limit),
+      ...createPaginatedResponse(customers.map((c) => {
+        const totalSpent = c.orders.reduce((sum, o) => sum + Number(o.total), 0);
+        const lastOrderAt = c.orders.length > 0 ? c.orders[0].createdAt : null;
+        return {
+          id: c.id, phone: c.phone, name: c.name, email: c.email, type: c.type,
+          isActive: c.isActive, createdAt: c.createdAt, ordersCount: c.orders.length,
+          totalSpent, lastOrderAt,
+        };
+      }), total, page, limit),
     });
   } catch (error) { next(error); }
 });
