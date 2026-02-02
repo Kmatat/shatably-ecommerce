@@ -57,7 +57,12 @@ router.get('/orders', async (req, res, next) => {
 
     const [orders, total] = await Promise.all([
       prisma.order.findMany({ where, skip, take: limit, orderBy: { createdAt: 'desc' },
-        include: { user: { select: { name: true, phone: true } }, address: true, _count: { select: { items: true } } } }),
+        include: {
+          user: { select: { name: true, phone: true } },
+          address: true,
+          driver: { select: { id: true, name: true, phone: true } },
+          _count: { select: { items: true } },
+        } }),
       prisma.order.count({ where }),
     ]);
 
@@ -67,7 +72,7 @@ router.get('/orders', async (req, res, next) => {
         id: o.id, orderNumber: o.orderNumber, customer: { name: o.user.name, phone: o.user.phone },
         total: Number(o.total), itemsCount: o._count.items, status: o.status,
         paymentMethod: o.paymentMethod, paymentStatus: o.paymentStatus,
-        deliveryType: o.deliveryType, createdAt: o.createdAt,
+        deliveryType: o.deliveryType, driverId: o.driverId, driver: o.driver, createdAt: o.createdAt,
       })), total, page, limit),
     });
   } catch (error) { next(error); }
@@ -539,6 +544,32 @@ router.get('/customers', async (req, res, next) => {
           totalSpent, lastOrderAt,
         };
       }), total, page, limit),
+    });
+  } catch (error) { next(error); }
+});
+
+/**
+ * PATCH /api/admin/customers/:id/status
+ * Toggle customer active status (suspend/activate)
+ */
+router.patch('/customers/:id/status', async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { isActive } = req.body;
+
+    const customer = await prisma.user.findUnique({ where: { id } });
+    if (!customer || customer.role !== 'customer') {
+      throw new AppError('Customer not found', 404);
+    }
+
+    await prisma.user.update({
+      where: { id },
+      data: { isActive },
+    });
+
+    res.json({
+      success: true,
+      message: isActive ? 'Customer activated' : 'Customer suspended',
     });
   } catch (error) { next(error); }
 });

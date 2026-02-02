@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import AdminLayout from '@/components/AdminLayout';
 import { useLanguageStore, useAuthStore } from '@/lib/store';
-import { Truck, Plus, Search, Phone, MapPin, Package, Edit, Trash2, X, Check } from 'lucide-react';
+import { Truck, Plus, Search, Phone, MapPin, Package, Edit, Trash2, X, Check, ToggleLeft, ToggleRight, Loader2 } from 'lucide-react';
 
 interface Driver {
   id: string;
@@ -9,9 +9,11 @@ interface Driver {
   phone: string;
   vehicle: string;
   plateNumber: string;
+  isActive: boolean;
   isAvailable: boolean;
   activeOrders: number;
   completedOrders: number;
+  ordersCount: number;
   createdAt: string;
 }
 
@@ -29,6 +31,7 @@ export default function DeliveryPage() {
     vehicle: '',
     plateNumber: '',
   });
+  const [togglingStatus, setTogglingStatus] = useState<string | null>(null);
 
   const t = {
     title: { ar: 'إدارة التوصيل', en: 'Delivery Management' },
@@ -51,6 +54,9 @@ export default function DeliveryPage() {
     delete: { ar: 'حذف', en: 'Delete' },
     noDrivers: { ar: 'لا يوجد سائقين', en: 'No drivers found' },
     confirmDelete: { ar: 'هل تريد حذف هذا السائق؟', en: 'Delete this driver?' },
+    toggleStatus: { ar: 'تغيير الحالة', en: 'Toggle Status' },
+    active: { ar: 'نشط', en: 'Active' },
+    inactive: { ar: 'غير نشط', en: 'Inactive' },
     stats: {
       totalDrivers: { ar: 'إجمالي السائقين', en: 'Total Drivers' },
       availableNow: { ar: 'متاحين الآن', en: 'Available Now' },
@@ -119,6 +125,29 @@ export default function DeliveryPage() {
       fetchDrivers();
     } catch (error) {
       console.error('Failed to delete driver:', error);
+    }
+  };
+
+  const handleToggleStatus = async (driver: Driver) => {
+    setTogglingStatus(driver.id);
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/drivers/${driver.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ isActive: !driver.isActive }),
+      });
+      if (response.ok) {
+        setDrivers((prev) =>
+          prev.map((d) => (d.id === driver.id ? { ...d, isActive: !driver.isActive } : d))
+        );
+      }
+    } catch (error) {
+      console.error('Failed to toggle driver status:', error);
+    } finally {
+      setTogglingStatus(null);
     }
   };
 
@@ -255,18 +284,47 @@ export default function DeliveryPage() {
                         <div className="text-sm text-gray-400">{driver.plateNumber}</div>
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                          driver.isAvailable
-                            ? 'bg-green-100 text-green-700'
-                            : 'bg-orange-100 text-orange-700'
-                        }`}>
-                          {driver.isAvailable ? t.available[language] : t.busy[language]}
-                        </span>
+                        <div className="flex flex-col gap-1">
+                          <span className={`px-2 py-1 text-xs font-medium rounded-full w-fit ${
+                            driver.isActive
+                              ? 'bg-green-100 text-green-700'
+                              : 'bg-gray-100 text-gray-700'
+                          }`}>
+                            {driver.isActive ? t.active[language] : t.inactive[language]}
+                          </span>
+                          {driver.isActive && (
+                            <span className={`px-2 py-1 text-xs font-medium rounded-full w-fit ${
+                              driver.isAvailable
+                                ? 'bg-blue-100 text-blue-700'
+                                : 'bg-orange-100 text-orange-700'
+                            }`}>
+                              {driver.isAvailable ? t.available[language] : t.busy[language]}
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-4 py-3 text-gray-600">{driver.activeOrders}</td>
                       <td className="px-4 py-3 text-gray-600">{driver.completedOrders}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => handleToggleStatus(driver)}
+                            disabled={togglingStatus === driver.id}
+                            className={`p-2 rounded-lg ${
+                              driver.isActive
+                                ? 'hover:bg-red-50 text-red-600'
+                                : 'hover:bg-green-50 text-green-600'
+                            }`}
+                            title={t.toggleStatus[language]}
+                          >
+                            {togglingStatus === driver.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : driver.isActive ? (
+                              <ToggleRight className="w-4 h-4" />
+                            ) : (
+                              <ToggleLeft className="w-4 h-4" />
+                            )}
+                          </button>
                           <button
                             onClick={() => openEditModal(driver)}
                             className="p-2 hover:bg-gray-100 rounded-lg text-gray-600"

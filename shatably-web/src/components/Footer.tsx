@@ -1,16 +1,42 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useTranslation } from 'react-i18next';
 import { Facebook, Twitter, Instagram, Youtube, Phone, Mail, MapPin, Clock } from 'lucide-react';
 import { useLanguageStore } from '@/lib/store';
 
+interface StoreSettings {
+  nameAr: string;
+  nameEn: string;
+  phone: string;
+  email: string;
+}
+
 export default function Footer() {
   const { t } = useTranslation();
   const { language } = useLanguageStore();
+  const [settings, setSettings] = useState<StoreSettings | null>(null);
+
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/settings`);
+        if (response.ok) {
+          const data = await response.json();
+          setSettings(data.data?.store || null);
+        }
+      } catch (error) {
+        console.error('Failed to fetch settings:', error);
+      }
+    };
+    fetchSettings();
+  }, []);
 
   const currentYear = new Date().getFullYear();
+  const storeName = settings ? (language === 'ar' ? settings.nameAr : settings.nameEn) : (language === 'ar' ? 'شطابلي' : 'Shatably');
+  const storePhone = settings?.phone || '16XXX';
+  const storeEmail = settings?.email || 'support@shatably.com';
 
   return (
     <footer className="bg-gray-900 text-gray-300">
@@ -24,7 +50,7 @@ export default function Footer() {
                 <span className="text-white font-bold text-xl">ش</span>
               </div>
               <h3 className="text-xl font-bold text-white">
-                {language === 'ar' ? 'شطابلي' : 'Shatably'}
+                {storeName}
               </h3>
             </div>
             <p className="text-sm leading-relaxed mb-4">
@@ -136,7 +162,7 @@ export default function Footer() {
               <li className="flex items-start gap-3">
                 <Phone className="w-5 h-5 text-primary-400 flex-shrink-0 mt-0.5" />
                 <div>
-                  <p className="font-medium text-white">16XXX</p>
+                  <p className="font-medium text-white">{storePhone}</p>
                   <p className="text-sm">
                     {language === 'ar' ? 'الخط الساخن' : 'Hotline'}
                   </p>
@@ -145,7 +171,7 @@ export default function Footer() {
               <li className="flex items-start gap-3">
                 <Mail className="w-5 h-5 text-primary-400 flex-shrink-0 mt-0.5" />
                 <div>
-                  <p className="font-medium text-white">support@shatably.com</p>
+                  <p className="font-medium text-white">{storeEmail}</p>
                 </div>
               </li>
               <li className="flex items-start gap-3">
@@ -193,7 +219,7 @@ export default function Footer() {
       <div className="border-t border-gray-800 py-6">
         <div className="container-custom flex flex-col md:flex-row items-center justify-between gap-4">
           <p className="text-sm">
-            © {currentYear} {language === 'ar' ? 'شطابلي' : 'Shatably'}. {t('footer.allRightsReserved')}.
+            © {currentYear} {storeName}. {t('footer.allRightsReserved')}.
           </p>
           {/* Payment methods */}
           <div className="flex items-center gap-4">

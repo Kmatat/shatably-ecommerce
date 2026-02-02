@@ -19,6 +19,7 @@ import addressRoutes from './routes/address.routes';
 import materialListRoutes from './routes/materialList.routes';
 import adminRoutes from './routes/admin.routes';
 import uploadRoutes from './routes/upload.routes';
+import settingsRoutes from './routes/settings.routes';
 
 // Import middleware
 import { errorHandler } from './middleware/errorHandler';
@@ -113,6 +114,7 @@ app.use('/api/addresses', addressRoutes);
 app.use('/api/material-lists', materialListRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/settings', settingsRoutes);
 
 // Error handling
 app.use(notFound);

@@ -1,6 +1,6 @@
 import Head from 'next/head';
 import { useRouter } from 'next/router';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   ArrowLeft,
   ArrowRight,
@@ -11,6 +11,7 @@ import {
   Plus,
   Image as ImageIcon,
   Trash2,
+  Upload,
 } from 'lucide-react';
 import AdminLayout from '@/components/AdminLayout';
 import { useLanguageStore, useAuthStore } from '@/lib/store';
@@ -83,6 +84,8 @@ export default function ProductEditPage() {
   const [newImageUrl, setNewImageUrl] = useState('');
   const [specKey, setSpecKey] = useState('');
   const [specValue, setSpecValue] = useState('');
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState<ProductForm>({
     nameAr: '',
@@ -131,6 +134,9 @@ export default function ProductEditPage() {
     images: language === 'ar' ? 'الصور' : 'Images',
     addImage: language === 'ar' ? 'إضافة صورة' : 'Add Image',
     imageUrl: language === 'ar' ? 'رابط الصورة' : 'Image URL',
+    uploadImage: language === 'ar' ? 'رفع صورة' : 'Upload Image',
+    uploading: language === 'ar' ? 'جاري الرفع...' : 'Uploading...',
+    orUpload: language === 'ar' ? 'أو ارفع من جهازك' : 'or upload from device',
     settings: language === 'ar' ? 'الإعدادات' : 'Settings',
     active: language === 'ar' ? 'نشط' : 'Active',
     featured: language === 'ar' ? 'مميز' : 'Featured',
@@ -260,6 +266,48 @@ export default function ProductEditPage() {
     if (newImageUrl.trim()) {
       setForm({ ...form, images: [...form.images, { url: newImageUrl.trim() }] });
       setNewImageUrl('');
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setUploadingImage(true);
+    try {
+      for (const file of Array.from(files)) {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/upload/image`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData,
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          // Construct full URL for the uploaded image
+          const imageUrl = data.data.url.startsWith('http')
+            ? data.data.url
+            : `${process.env.NEXT_PUBLIC_API_URL}${data.data.url}`;
+          setForm((prev) => ({
+            ...prev,
+            images: [...prev.images, { url: imageUrl }],
+          }));
+        } else {
+          const error = await response.json();
+          alert(error.message || 'Failed to upload image');
+        }
+      }
+    } catch (error) {
+      console.error('Upload failed:', error);
+      alert(language === 'ar' ? 'فشل رفع الصورة' : 'Failed to upload image');
+    } finally {
+      setUploadingImage(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     }
   };
 
@@ -469,6 +517,41 @@ export default function ProductEditPage() {
               <div className="bg-white rounded-xl shadow-sm p-6">
                 <h2 className="font-semibold text-lg mb-4">{t.images}</h2>
                 <div className="space-y-4">
+                  {/* File Upload Button */}
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-primary-400 transition-colors">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      onChange={handleFileUpload}
+                      className="hidden"
+                      id="image-upload"
+                    />
+                    <label
+                      htmlFor="image-upload"
+                      className="cursor-pointer flex flex-col items-center"
+                    >
+                      {uploadingImage ? (
+                        <>
+                          <Loader2 className="w-10 h-10 text-primary-500 animate-spin mb-2" />
+                          <span className="text-gray-600">{t.uploading}</span>
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="w-10 h-10 text-gray-400 mb-2" />
+                          <span className="text-primary-600 font-medium">{t.uploadImage}</span>
+                          <span className="text-sm text-gray-500 mt-1">PNG, JPG, WEBP up to 10MB</span>
+                        </>
+                      )}
+                    </label>
+                  </div>
+
+                  {/* URL Input */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-500">{t.orUpload}</span>
+                    <div className="flex-1 h-px bg-gray-200" />
+                  </div>
                   <div className="flex gap-2">
                     <input
                       type="url"

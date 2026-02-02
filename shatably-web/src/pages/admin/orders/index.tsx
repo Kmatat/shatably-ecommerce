@@ -16,6 +16,8 @@ import {
   Package,
   MoreVertical,
   Loader2,
+  User,
+  X,
 } from 'lucide-react';
 import AdminLayout from '@/components/AdminLayout';
 import { useLanguageStore, useAuthStore } from '@/lib/store';
@@ -31,7 +33,16 @@ interface Order {
   paymentMethod: string;
   paymentStatus: string;
   deliveryType: string;
+  driverId: string | null;
+  driver: { id: string; name: string; phone: string } | null;
   createdAt: string;
+}
+
+interface Driver {
+  id: string;
+  name: string;
+  phone: string;
+  isActive: boolean;
 }
 
 type OrderStatus = 'all' | 'pending' | 'confirmed' | 'processing' | 'ready' | 'in_transit' | 'delivered' | 'cancelled';
@@ -47,6 +58,9 @@ export default function AdminOrdersPage() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
+  const [drivers, setDrivers] = useState<Driver[]>([]);
+  const [assigningOrder, setAssigningOrder] = useState<Order | null>(null);
+  const [assigning, setAssigning] = useState(false);
 
   const content = {
     ar: {
@@ -91,6 +105,12 @@ export default function AdminOrdersPage() {
       loading: 'جاري التحميل...',
       of: 'من',
       orders: 'طلب',
+      driver: 'السائق',
+      assignDriver: 'تعيين سائق',
+      noDriver: 'بدون سائق',
+      selectDriver: 'اختر سائق',
+      assign: 'تعيين',
+      cancel: 'إلغاء',
     },
     en: {
       title: 'Orders Management',
@@ -134,6 +154,12 @@ export default function AdminOrdersPage() {
       loading: 'Loading...',
       of: 'of',
       orders: 'orders',
+      driver: 'Driver',
+      assignDriver: 'Assign Driver',
+      noDriver: 'No Driver',
+      selectDriver: 'Select Driver',
+      assign: 'Assign',
+      cancel: 'Cancel',
     },
   };
 
@@ -141,7 +167,22 @@ export default function AdminOrdersPage() {
 
   useEffect(() => {
     fetchOrders();
+    fetchDrivers();
   }, [page, searchQuery, statusFilter]);
+
+  const fetchDrivers = async () => {
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/drivers`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setDrivers((data.data || []).filter((d: Driver) => d.isActive));
+      }
+    } catch (error) {
+      console.error('Failed to fetch drivers:', error);
+    }
+  };
 
   const fetchOrders = async () => {
     setLoading(true);
@@ -184,6 +225,32 @@ export default function AdminOrdersPage() {
       }
     } catch (error) {
       console.error('Failed to update order status:', error);
+    }
+  };
+
+  const handleAssignDriver = async (driverId: string) => {
+    if (!assigningOrder) return;
+    setAssigning(true);
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/admin/orders/${assigningOrder.id}/status`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ driverId }),
+        }
+      );
+      if (response.ok) {
+        fetchOrders();
+        setAssigningOrder(null);
+      }
+    } catch (error) {
+      console.error('Failed to assign driver:', error);
+    } finally {
+      setAssigning(false);
     }
   };
 
@@ -301,6 +368,7 @@ export default function AdminOrdersPage() {
                       <th className="text-start px-4 py-3 text-sm font-medium text-gray-500">{t.status}</th>
                       <th className="text-start px-4 py-3 text-sm font-medium text-gray-500">{t.payment}</th>
                       <th className="text-start px-4 py-3 text-sm font-medium text-gray-500">{t.delivery}</th>
+                      <th className="text-start px-4 py-3 text-sm font-medium text-gray-500">{t.driver}</th>
                       <th className="text-start px-4 py-3 text-sm font-medium text-gray-500">{t.date}</th>
                       <th className="text-start px-4 py-3 text-sm font-medium text-gray-500">{t.actions}</th>
                     </tr>
@@ -369,6 +437,27 @@ export default function AdminOrdersPage() {
                               {t.deliveryTypes[order.deliveryType as keyof typeof t.deliveryTypes] || order.deliveryType}
                             </span>
                           </td>
+                          <td className="px-4 py-4">
+                            {order.driver ? (
+                              <div className="flex items-center gap-2">
+                                <div className="w-7 h-7 bg-blue-100 rounded-full flex items-center justify-center">
+                                  <Truck className="w-4 h-4 text-blue-600" />
+                                </div>
+                                <div>
+                                  <p className="text-sm font-medium">{order.driver.name}</p>
+                                  <p className="text-xs text-gray-500">{order.driver.phone}</p>
+                                </div>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => setAssigningOrder(order)}
+                                className="flex items-center gap-1 text-sm text-primary-600 hover:text-primary-700"
+                              >
+                                <User className="w-4 h-4" />
+                                {t.assignDriver}
+                              </button>
+                            )}
+                          </td>
                           <td className="px-4 py-4 text-sm text-gray-500">
                             {formatDate(order.createdAt, language)}
                           </td>
@@ -377,7 +466,7 @@ export default function AdminOrdersPage() {
                               <button className="p-2 hover:bg-gray-100 rounded-lg">
                                 <MoreVertical className="w-4 h-4 text-gray-500" />
                               </button>
-                              <div className="absolute top-full end-0 mt-1 w-40 bg-white rounded-lg shadow-lg border opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
+                              <div className="absolute top-full end-0 mt-1 w-48 bg-white rounded-lg shadow-lg border opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
                                 <div className="py-1">
                                   <Link
                                     href={`/admin/orders/${order.id}`}
@@ -386,6 +475,13 @@ export default function AdminOrdersPage() {
                                     <Eye className="w-4 h-4" />
                                     {t.viewDetails}
                                   </Link>
+                                  <button
+                                    onClick={() => setAssigningOrder(order)}
+                                    className="flex items-center gap-2 px-4 py-2 text-sm hover:bg-gray-50 w-full"
+                                  >
+                                    <Truck className="w-4 h-4" />
+                                    {t.assignDriver}
+                                  </button>
                                 </div>
                               </div>
                             </div>
@@ -428,6 +524,61 @@ export default function AdminOrdersPage() {
           )}
         </div>
       </AdminLayout>
+
+      {/* Driver Assignment Modal */}
+      {assigningOrder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-xl w-full max-w-md mx-4 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold">{t.assignDriver}</h3>
+              <button
+                onClick={() => setAssigningOrder(null)}
+                className="p-2 hover:bg-gray-100 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+              <p className="text-sm text-gray-600">{t.orderNumber}: <span className="font-medium">{assigningOrder.orderNumber}</span></p>
+              <p className="text-sm text-gray-600">{t.customer}: <span className="font-medium">{assigningOrder.customer.name || assigningOrder.customer.phone}</span></p>
+            </div>
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {drivers.length === 0 ? (
+                <p className="text-center text-gray-500 py-4">{t.noOrders}</p>
+              ) : (
+                drivers.map((driver) => (
+                  <button
+                    key={driver.id}
+                    onClick={() => handleAssignDriver(driver.id)}
+                    disabled={assigning}
+                    className={cn(
+                      'w-full flex items-center gap-3 p-3 border rounded-lg hover:bg-gray-50 transition-colors',
+                      assigningOrder.driverId === driver.id && 'border-primary-500 bg-primary-50'
+                    )}
+                  >
+                    <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                      <Truck className="w-5 h-5 text-blue-600" />
+                    </div>
+                    <div className="text-start flex-1">
+                      <p className="font-medium">{driver.name}</p>
+                      <p className="text-sm text-gray-500">{driver.phone}</p>
+                    </div>
+                    {assigning && (
+                      <Loader2 className="w-5 h-5 animate-spin text-primary-500" />
+                    )}
+                  </button>
+                ))
+              )}
+            </div>
+            <button
+              onClick={() => setAssigningOrder(null)}
+              className="mt-4 w-full py-2 border rounded-lg hover:bg-gray-50"
+            >
+              {t.cancel}
+            </button>
+          </div>
+        </div>
+      )}
     </>
   );
 }
