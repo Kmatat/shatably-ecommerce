@@ -1,11 +1,25 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import multer from 'multer';
 import prisma from '../config/database';
 import { authenticate, requireAdmin } from '../middleware/auth';
 import { validateBody } from '../middleware/validate';
 import { AppError } from '../middleware/errorHandler';
 import { paginate, createPaginatedResponse, slugify, generateSku } from '../utils/helpers';
 import smsService from '../services/sms.service';
+
+// Multer config for CSV uploads
+const csvUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB max
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype === 'text/csv' || file.originalname.endsWith('.csv')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only CSV files are allowed'));
+    }
+  },
+});
 
 const router = Router();
 router.use(authenticate, requireAdmin);
@@ -220,6 +234,187 @@ router.delete('/products/:id', async (req, res, next) => {
     res.json({ success: true, message: 'Product deleted' });
   } catch (error) { next(error); }
 });
+
+// ============ PRODUCTS EXPORT/IMPORT ============
+// Export products to CSV
+router.get('/products/export/csv', async (req, res, next) => {
+  try {
+    const products = await prisma.product.findMany({
+      include: {
+        category: { select: { nameEn: true } },
+        brand: { select: { nameEn: true } },
+        images: { where: { isPrimary: true }, take: 1 },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // CSV headers
+    const headers = ['SKU', 'Name (Arabic)', 'Name (English)', 'Description (Arabic)', 'Description (English)', 'Price', 'Original Price', 'Unit', 'Stock', 'Min Order Qty', 'Category', 'Brand', 'Image URL', 'Is Active', 'Is Featured'];
+
+    // CSV rows
+    const rows = products.map((p) => [
+      p.sku,
+      `"${(p.nameAr || '').replace(/"/g, '""')}"`,
+      `"${(p.nameEn || '').replace(/"/g, '""')}"`,
+      `"${(p.descriptionAr || '').replace(/"/g, '""')}"`,
+      `"${(p.descriptionEn || '').replace(/"/g, '""')}"`,
+      p.price.toString(),
+      p.originalPrice?.toString() || '',
+      p.unit,
+      p.stock.toString(),
+      p.minOrderQty.toString(),
+      p.category?.nameEn || '',
+      p.brand?.nameEn || '',
+      p.images[0]?.url || '',
+      p.isActive ? 'true' : 'false',
+      p.isFeatured ? 'true' : 'false',
+    ]);
+
+    // Build CSV content
+    const csvContent = [headers.join(','), ...rows.map((row) => row.join(','))].join('\n');
+
+    // Set headers for CSV download
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename=products-${new Date().toISOString().split('T')[0]}.csv`);
+
+    // Add BOM for Excel UTF-8 compatibility
+    res.send('\ufeff' + csvContent);
+  } catch (error) { next(error); }
+});
+
+// Import products from CSV
+router.post('/products/import/csv', csvUpload.single('file'), async (req, res, next) => {
+  try {
+    if (!req.file) {
+      throw new AppError('No file uploaded', 400);
+    }
+
+    const csvContent = req.file.buffer.toString('utf-8');
+    const lines = csvContent.split('\n').filter((line) => line.trim());
+
+    if (lines.length < 2) {
+      throw new AppError('CSV file is empty or has no data rows', 400);
+    }
+
+    // Parse headers (first line)
+    const headers = lines[0].split(',').map((h) => h.trim().toLowerCase());
+
+    // Get categories and brands for lookup
+    const categories = await prisma.category.findMany();
+    const brands = await prisma.brand.findMany();
+    const categoryMap = new Map(categories.map((c) => [c.nameEn.toLowerCase(), c.id]));
+    const brandMap = new Map(brands.map((b) => [b.nameEn.toLowerCase(), b.id]));
+
+    const results = { created: 0, updated: 0, errors: [] as string[] };
+
+    // Process each data row
+    for (let i = 1; i < lines.length; i++) {
+      try {
+        const values = parseCSVLine(lines[i]);
+        const row: Record<string, string> = {};
+        headers.forEach((h, idx) => { row[h] = values[idx] || ''; });
+
+        const sku = row['sku']?.trim();
+        const nameAr = row['name (arabic)']?.trim() || row['namear']?.trim();
+        const nameEn = row['name (english)']?.trim() || row['nameen']?.trim();
+        const price = parseFloat(row['price']) || 0;
+        const unit = row['unit']?.trim() || 'piece';
+        const stock = parseInt(row['stock']) || 0;
+        const categoryName = row['category']?.trim().toLowerCase();
+        const brandName = row['brand']?.trim().toLowerCase();
+
+        if (!nameAr || !nameEn || price <= 0) {
+          results.errors.push(`Row ${i + 1}: Missing required fields (name or price)`);
+          continue;
+        }
+
+        const categoryId = categoryMap.get(categoryName);
+        if (!categoryId) {
+          results.errors.push(`Row ${i + 1}: Category "${categoryName}" not found`);
+          continue;
+        }
+
+        const productData = {
+          nameAr,
+          nameEn,
+          descriptionAr: row['description (arabic)']?.trim() || row['descriptionar']?.trim() || null,
+          descriptionEn: row['description (english)']?.trim() || row['descriptionen']?.trim() || null,
+          price,
+          originalPrice: row['original price'] ? parseFloat(row['original price']) : null,
+          unit: unit as any,
+          stock,
+          minOrderQty: parseInt(row['min order qty']) || 1,
+          categoryId,
+          brandId: brandName ? brandMap.get(brandName) || null : null,
+          isActive: row['is active']?.toLowerCase() !== 'false',
+          isFeatured: row['is featured']?.toLowerCase() === 'true',
+        };
+
+        // Check if product exists (by SKU)
+        if (sku) {
+          const existing = await prisma.product.findUnique({ where: { sku } });
+          if (existing) {
+            await prisma.product.update({ where: { sku }, data: productData });
+            results.updated++;
+            continue;
+          }
+        }
+
+        // Create new product
+        const newSku = sku || generateSku(categoryId.slice(0, 3));
+        await prisma.product.create({
+          data: { ...productData, sku: newSku },
+        });
+        results.created++;
+
+        // Add image if provided
+        const imageUrl = row['image url']?.trim();
+        if (imageUrl) {
+          const product = await prisma.product.findUnique({ where: { sku: newSku } });
+          if (product) {
+            await prisma.productImage.create({
+              data: { productId: product.id, url: imageUrl, isPrimary: true, sortOrder: 0 },
+            });
+          }
+        }
+      } catch (rowError: any) {
+        results.errors.push(`Row ${i + 1}: ${rowError.message}`);
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `Import completed: ${results.created} created, ${results.updated} updated`,
+      data: results,
+    });
+  } catch (error) { next(error); }
+});
+
+// Helper function to parse CSV line (handles quoted values)
+function parseCSVLine(line: string): string[] {
+  const result: string[] = [];
+  let current = '';
+  let inQuotes = false;
+
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    if (char === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        current += '"';
+        i++; // Skip escaped quote
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (char === ',' && !inQuotes) {
+      result.push(current.trim());
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  result.push(current.trim());
+  return result;
+}
 
 // ============ BRANDS ============
 router.get('/brands', async (req, res, next) => {

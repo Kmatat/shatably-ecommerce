@@ -1,7 +1,7 @@
 import Head from 'next/head';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Search,
   Plus,
@@ -18,6 +18,9 @@ import {
   Loader2,
   ChevronLeft,
   ChevronRight,
+  FileSpreadsheet,
+  AlertCircle,
+  CheckCircle,
 } from 'lucide-react';
 import AdminLayout from '@/components/AdminLayout';
 import { useLanguageStore, useAuthStore } from '@/lib/store';
@@ -60,6 +63,10 @@ export default function AdminProductsPage() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
+  const [exporting, setExporting] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<{ created: number; updated: number; errors: string[] } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const content = {
     ar: {
@@ -92,6 +99,13 @@ export default function AdminProductsPage() {
       loading: 'جاري التحميل...',
       of: 'من',
       products: 'منتج',
+      exporting: 'جاري التصدير...',
+      importing: 'جاري الاستيراد...',
+      importSuccess: 'تم الاستيراد بنجاح',
+      created: 'تم إنشاء',
+      updated: 'تم تحديث',
+      errors: 'أخطاء',
+      close: 'إغلاق',
     },
     en: {
       title: 'Products Management',
@@ -123,6 +137,13 @@ export default function AdminProductsPage() {
       loading: 'Loading...',
       of: 'of',
       products: 'products',
+      exporting: 'Exporting...',
+      importing: 'Importing...',
+      importSuccess: 'Import successful',
+      created: 'Created',
+      updated: 'Updated',
+      errors: 'Errors',
+      close: 'Close',
     },
   };
 
@@ -226,6 +247,69 @@ export default function AdminProductsPage() {
     );
   };
 
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/products/export/csv`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `products-${new Date().toISOString().split('T')[0]}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      } else {
+        alert('Failed to export products');
+      }
+    } catch (error) {
+      console.error('Export failed:', error);
+      alert('Failed to export products');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setImporting(true);
+    setImportResult(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/products/import/csv`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+
+      const data = await response.json();
+      if (response.ok) {
+        setImportResult(data.data);
+        fetchProducts(); // Refresh product list
+      } else {
+        alert(data.message || 'Failed to import products');
+      }
+    } catch (error) {
+      console.error('Import failed:', error);
+      alert('Failed to import products');
+    } finally {
+      setImporting(false);
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
   return (
     <>
       <Head>
@@ -280,13 +364,28 @@ export default function AdminProductsPage() {
 
             {/* Actions */}
             <div className="flex gap-2">
-              <button className="flex items-center gap-2 px-4 py-2.5 border rounded-lg hover:bg-gray-50">
-                <Upload className="w-5 h-5" />
-                {t.import}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv"
+                onChange={handleImport}
+                className="hidden"
+              />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={importing}
+                className="flex items-center gap-2 px-4 py-2.5 border rounded-lg hover:bg-gray-50 disabled:opacity-50"
+              >
+                {importing ? <Loader2 className="w-5 h-5 animate-spin" /> : <Upload className="w-5 h-5" />}
+                {importing ? t.importing : t.import}
               </button>
-              <button className="flex items-center gap-2 px-4 py-2.5 border rounded-lg hover:bg-gray-50">
-                <Download className="w-5 h-5" />
-                {t.export}
+              <button
+                onClick={handleExport}
+                disabled={exporting}
+                className="flex items-center gap-2 px-4 py-2.5 border rounded-lg hover:bg-gray-50 disabled:opacity-50"
+              >
+                {exporting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
+                {exporting ? t.exporting : t.export}
               </button>
               <Link href="/admin/products/new" className="flex items-center gap-2 px-4 py-2.5 bg-primary-500 text-white rounded-lg hover:bg-primary-600">
                 <Plus className="w-5 h-5" />
@@ -458,6 +557,54 @@ export default function AdminProductsPage() {
             </>
           )}
         </div>
+
+        {/* Import Result Modal */}
+        {importResult && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl w-full max-w-md max-h-[80vh] overflow-hidden">
+              <div className="p-4 border-b flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="w-5 h-5 text-green-500" />
+                  <h3 className="font-semibold">{t.importSuccess}</h3>
+                </div>
+                <button onClick={() => setImportResult(null)} className="p-1 hover:bg-gray-100 rounded">
+                  &times;
+                </button>
+              </div>
+              <div className="p-4 space-y-3">
+                <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
+                  <span className="text-green-700">{t.created}</span>
+                  <span className="font-semibold text-green-700">{importResult.created}</span>
+                </div>
+                <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
+                  <span className="text-blue-700">{t.updated}</span>
+                  <span className="font-semibold text-blue-700">{importResult.updated}</span>
+                </div>
+                {importResult.errors.length > 0 && (
+                  <div className="p-3 bg-red-50 rounded-lg">
+                    <div className="flex items-center gap-2 text-red-700 mb-2">
+                      <AlertCircle className="w-4 h-4" />
+                      <span className="font-medium">{t.errors} ({importResult.errors.length})</span>
+                    </div>
+                    <div className="max-h-40 overflow-y-auto text-sm text-red-600 space-y-1">
+                      {importResult.errors.map((error, i) => (
+                        <p key={i}>{error}</p>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div className="p-4 border-t">
+                <button
+                  onClick={() => setImportResult(null)}
+                  className="w-full py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600"
+                >
+                  {t.close}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </AdminLayout>
     </>
   );
