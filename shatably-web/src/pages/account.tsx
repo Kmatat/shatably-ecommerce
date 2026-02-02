@@ -18,8 +18,9 @@ import {
   Globe,
   Camera,
   Loader2,
+  Trash2,
 } from 'lucide-react';
-import { Header, Footer } from '@/components';
+import { Header, Footer, AddressModal } from '@/components';
 import { useLanguageStore, useAuthStore, useUIStore } from '@/lib/store';
 import { cn, formatPhone } from '@/lib/utils';
 import { Address } from '@/types';
@@ -28,7 +29,7 @@ type TabType = 'profile' | 'addresses' | 'settings';
 
 export default function AccountPage() {
   const { language } = useLanguageStore();
-  const { user, isAuthenticated, logout, setUser } = useAuthStore();
+  const { user, isAuthenticated, logout, setUser, token } = useAuthStore();
   const { openAuthModal } = useUIStore();
 
   const [activeTab, setActiveTab] = useState<TabType>('profile');
@@ -37,6 +38,8 @@ export default function AccountPage() {
   const [editedEmail, setEditedEmail] = useState(user?.email || '');
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [loadingAddresses, setLoadingAddresses] = useState(false);
+  const [showAddressModal, setShowAddressModal] = useState(false);
+  const [editingAddress, setEditingAddress] = useState<Address | null>(null);
 
   const content = {
     ar: {
@@ -142,32 +145,67 @@ export default function AccountPage() {
   };
 
   // Fetch addresses from API
-  useEffect(() => {
-    const fetchAddresses = async () => {
-      if (!isAuthenticated) return;
+  const fetchAddresses = async () => {
+    if (!isAuthenticated || !token) return;
 
-      setLoadingAddresses(true);
-      try {
-        const token = localStorage.getItem('auth-token');
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/addresses`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-        });
+    setLoadingAddresses(true);
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/addresses`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
-        if (response.ok) {
-          const data = await response.json();
-          setAddresses(data.data || []);
-        }
-      } catch (error) {
-        console.error('Failed to fetch addresses:', error);
-      } finally {
-        setLoadingAddresses(false);
+      if (response.ok) {
+        const data = await response.json();
+        setAddresses(data.data || []);
       }
-    };
+    } catch (error) {
+      console.error('Failed to fetch addresses:', error);
+    } finally {
+      setLoadingAddresses(false);
+    }
+  };
 
+  useEffect(() => {
     fetchAddresses();
-  }, [isAuthenticated]);
+  }, [isAuthenticated, token]);
+
+  const handleAddressModalClose = () => {
+    setShowAddressModal(false);
+    setEditingAddress(null);
+  };
+
+  const handleAddressSaved = (savedAddress: Address) => {
+    // Refresh the addresses list
+    fetchAddresses();
+  };
+
+  const handleEditAddress = (address: Address) => {
+    setEditingAddress(address);
+    setShowAddressModal(true);
+  };
+
+  const handleDeleteAddress = async (addressId: string) => {
+    if (!confirm(language === 'ar' ? 'هل أنت متأكد من حذف هذا العنوان؟' : 'Are you sure you want to delete this address?')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/addresses/${addressId}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        fetchAddresses();
+      }
+    } catch (error) {
+      console.error('Failed to delete address:', error);
+    }
+  };
 
   if (!isAuthenticated) {
     return (
@@ -394,7 +432,10 @@ export default function AccountPage() {
                 <div className="bg-white rounded-xl shadow-sm p-6">
                   <div className="flex items-center justify-between mb-6">
                     <h2 className="text-lg font-semibold">{t.savedAddresses}</h2>
-                    <button className="btn-primary text-sm">
+                    <button
+                      onClick={() => setShowAddressModal(true)}
+                      className="btn-primary text-sm flex items-center"
+                    >
                       <MapPin className="w-4 h-4 me-2" />
                       {t.addAddress}
                     </button>
@@ -433,15 +474,35 @@ export default function AccountPage() {
                                 </p>
                               </div>
                             </div>
-                            <button className="text-primary-600 hover:text-primary-700">
-                              <Edit2 className="w-4 h-4" />
-                            </button>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => handleEditAddress(address)}
+                                className="p-2 text-primary-600 hover:bg-primary-50 rounded-lg"
+                              >
+                                <Edit2 className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteAddress(address.id)}
+                                className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
                           </div>
                         </div>
                       ))}
                     </div>
                   ) : (
-                    <p className="text-gray-500 text-center py-8">{t.noAddresses}</p>
+                    <div className="text-center py-8">
+                      <MapPin className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                      <p className="text-gray-500 mb-4">{t.noAddresses}</p>
+                      <button
+                        onClick={() => setShowAddressModal(true)}
+                        className="btn-primary"
+                      >
+                        {t.addAddress}
+                      </button>
+                    </div>
                   )}
                 </div>
               )}
@@ -517,6 +578,14 @@ export default function AccountPage() {
       </main>
 
       <Footer />
+
+      {/* Address Modal */}
+      <AddressModal
+        isOpen={showAddressModal}
+        onClose={handleAddressModalClose}
+        onSave={handleAddressSaved}
+        editAddress={editingAddress}
+      />
     </>
   );
 }

@@ -1,7 +1,7 @@
 import Head from 'next/head';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import {
   MapPin,
@@ -16,9 +16,10 @@ import {
   Loader2,
   CheckCircle,
 } from 'lucide-react';
-import { Header, Footer } from '@/components';
-import { useCartStore, useLanguageStore, useAddressStore, useAuthStore } from '@/lib/store';
+import { Header, Footer, AddressModal } from '@/components';
+import { useCartStore, useLanguageStore, useAuthStore } from '@/lib/store';
 import { formatPrice, cn, generateOrderNumber } from '@/lib/utils';
+import type { Address } from '@/types';
 
 type DeliveryType = 'express' | 'scheduled';
 type PaymentMethod = 'card' | 'fawry' | 'cod' | 'wallet';
@@ -28,13 +29,13 @@ export default function CheckoutPage() {
   const router = useRouter();
   const { language } = useLanguageStore();
   const { items, getSubtotal, clearCart } = useCartStore();
-  const { addresses } = useAddressStore();
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, token } = useAuthStore();
 
+  const [addresses, setAddresses] = useState<Address[]>([]);
+  const [loadingAddresses, setLoadingAddresses] = useState(true);
+  const [showAddressModal, setShowAddressModal] = useState(false);
   const [step, setStep] = useState(1);
-  const [selectedAddressId, setSelectedAddressId] = useState<string | null>(
-    addresses.find((a) => a.isDefault)?.id || addresses[0]?.id || null
-  );
+  const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
   const [deliveryType, setDeliveryType] = useState<DeliveryType>('scheduled');
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedTime, setSelectedTime] = useState<TimeSlot>('morning');
@@ -42,6 +43,44 @@ export default function CheckoutPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [orderComplete, setOrderComplete] = useState(false);
   const [orderNumber, setOrderNumber] = useState('');
+
+  // Fetch addresses from API
+  const fetchAddresses = async () => {
+    if (!isAuthenticated || !token) {
+      setLoadingAddresses(false);
+      return;
+    }
+
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/addresses`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const fetchedAddresses = data.data || [];
+        setAddresses(fetchedAddresses);
+        // Auto-select default or first address
+        const defaultAddr = fetchedAddresses.find((a: Address) => a.isDefault);
+        setSelectedAddressId(defaultAddr?.id || fetchedAddresses[0]?.id || null);
+      }
+    } catch (error) {
+      console.error('Failed to fetch addresses:', error);
+    } finally {
+      setLoadingAddresses(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchAddresses();
+  }, [isAuthenticated, token]);
+
+  const handleAddressSaved = (savedAddress: Address) => {
+    fetchAddresses();
+    setShowAddressModal(false);
+  };
 
   const subtotal = getSubtotal();
   const expressDeliveryFee = 150;
@@ -258,8 +297,12 @@ export default function CheckoutPage() {
                 {step === 1 && (
                   <div>
                     <h2 className="text-lg font-semibold mb-6">{t.selectAddress}</h2>
-                    
-                    {addresses.length > 0 ? (
+
+                    {loadingAddresses ? (
+                      <div className="flex items-center justify-center py-8">
+                        <Loader2 className="w-8 h-8 animate-spin text-primary-500" />
+                      </div>
+                    ) : addresses.length > 0 ? (
                       <div className="space-y-3">
                         {addresses.map((address) => (
                           <label
@@ -299,10 +342,16 @@ export default function CheckoutPage() {
                         ))}
                       </div>
                     ) : (
-                      <p className="text-gray-500 mb-4">{t.noAddresses}</p>
+                      <div className="text-center py-8">
+                        <MapPin className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                        <p className="text-gray-500 mb-4">{t.noAddresses}</p>
+                      </div>
                     )}
 
-                    <button className="mt-4 flex items-center gap-2 text-primary-600 hover:text-primary-700 font-medium">
+                    <button
+                      onClick={() => setShowAddressModal(true)}
+                      className="mt-4 flex items-center gap-2 text-primary-600 hover:text-primary-700 font-medium"
+                    >
                       <Plus className="w-5 h-5" />
                       {t.addNewAddress}
                     </button>
@@ -553,6 +602,14 @@ export default function CheckoutPage() {
       </main>
 
       <Footer />
+
+      {/* Address Modal */}
+      <AddressModal
+        isOpen={showAddressModal}
+        onClose={() => setShowAddressModal(false)}
+        onSave={handleAddressSaved}
+        editAddress={null}
+      />
     </>
   );
 }

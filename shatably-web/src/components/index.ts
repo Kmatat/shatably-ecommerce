@@ -5,3 +5,4 @@ export { default as HeroSection } from './HeroSection';
 export { default as CategorySection } from './CategorySection';
 export { default as FeaturedProducts, DealsSection } from './FeaturedProducts';
 export { default as UploadListBanner } from './UploadListBanner';
+export { default as AddressModal } from './AddressModal';
