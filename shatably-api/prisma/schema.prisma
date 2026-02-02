@@ -479,6 +479,9 @@ enum ContentType {
   about
   terms
   privacy
+  shipping
+  returns
+  contact
 }
 
 model Content {

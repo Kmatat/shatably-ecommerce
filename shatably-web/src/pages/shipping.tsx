@@ -1,15 +1,37 @@
 import Head from 'next/head';
-import { Truck, Clock, MapPin, Package, CheckCircle } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Truck, Clock, MapPin, Package, CheckCircle, Loader2 } from 'lucide-react';
 import { Header, Footer } from '@/components';
 import { useLanguageStore } from '@/lib/store';
 
+interface ShippingContent {
+  expressDelivery?: any;
+  scheduledDelivery?: any;
+  freeDelivery?: any;
+  areas?: any;
+  tracking?: any;
+  notes?: any;
+}
+
 export default function ShippingPage() {
   const { language } = useLanguageStore();
+  const [content, setContent] = useState<ShippingContent | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const t = {
     ar: {
       title: 'سياسة الشحن والتوصيل',
       subtitle: 'نوصل مواد البناء إلى موقعك',
+    },
+    en: {
+      title: 'Shipping & Delivery Policy',
+      subtitle: 'We deliver building materials to your location',
+    },
+  };
+
+  // Default content
+  const defaults = {
+    ar: {
       expressTitle: 'التوصيل السريع',
       expressDesc: 'توصيل خلال 3 ساعات في القاهرة الكبرى',
       expressFee: 'رسوم التوصيل: 150 جنيه',
@@ -34,8 +56,6 @@ export default function ShippingPage() {
       ],
     },
     en: {
-      title: 'Shipping & Delivery Policy',
-      subtitle: 'We deliver building materials to your location',
       expressTitle: 'Express Delivery',
       expressDesc: 'Delivery within 3 hours in Greater Cairo',
       expressFee: 'Delivery fee: 150 EGP',
@@ -61,12 +81,87 @@ export default function ShippingPage() {
     },
   };
 
-  const content = t[language];
+  const pageText = t[language];
+  const defaultContent = defaults[language];
+
+  useEffect(() => {
+    const fetchContent = async () => {
+      try {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/content?type=shipping`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.data && data.data.length > 0) {
+            const organized: ShippingContent = {};
+            data.data.forEach((item: any) => {
+              if (item.key === 'shipping-express') organized.expressDelivery = item;
+              else if (item.key === 'shipping-scheduled') organized.scheduledDelivery = item;
+              else if (item.key === 'shipping-free') organized.freeDelivery = item;
+              else if (item.key === 'shipping-areas') organized.areas = item;
+              else if (item.key === 'shipping-tracking') organized.tracking = item;
+              else if (item.key === 'shipping-notes') organized.notes = item;
+            });
+            setContent(organized);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch shipping content:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchContent();
+  }, []);
+
+  // Get values with fallback
+  const expressTitle = content?.expressDelivery
+    ? (language === 'ar' ? content.expressDelivery.titleAr : content.expressDelivery.titleEn)
+    : defaultContent.expressTitle;
+  const expressDesc = content?.expressDelivery
+    ? (language === 'ar' ? content.expressDelivery.contentAr : content.expressDelivery.contentEn)
+    : defaultContent.expressDesc;
+  const expressFee = content?.expressDelivery?.metadata?.fee || defaultContent.expressFee;
+
+  const scheduledTitle = content?.scheduledDelivery
+    ? (language === 'ar' ? content.scheduledDelivery.titleAr : content.scheduledDelivery.titleEn)
+    : defaultContent.scheduledTitle;
+  const scheduledDesc = content?.scheduledDelivery
+    ? (language === 'ar' ? content.scheduledDelivery.contentAr : content.scheduledDelivery.contentEn)
+    : defaultContent.scheduledDesc;
+  const scheduledFee = content?.scheduledDelivery?.metadata?.fee || defaultContent.scheduledFee;
+
+  const freeTitle = content?.freeDelivery
+    ? (language === 'ar' ? content.freeDelivery.titleAr : content.freeDelivery.titleEn)
+    : defaultContent.freeTitle;
+  const freeDesc = content?.freeDelivery
+    ? (language === 'ar' ? content.freeDelivery.contentAr : content.freeDelivery.contentEn)
+    : defaultContent.freeDesc;
+  const freeCondition = content?.freeDelivery?.metadata?.condition || defaultContent.freeCondition;
+
+  const areasTitle = content?.areas
+    ? (language === 'ar' ? content.areas.titleAr : content.areas.titleEn)
+    : defaultContent.areas;
+  const areasText = content?.areas
+    ? (language === 'ar' ? content.areas.contentAr : content.areas.contentEn)
+    : defaultContent.areasText;
+  const areasList = content?.areas?.metadata?.areas || defaultContent.areasList;
+  const otherAreas = content?.areas?.metadata?.otherAreas || defaultContent.otherAreas;
+
+  const trackingTitle = content?.tracking
+    ? (language === 'ar' ? content.tracking.titleAr : content.tracking.titleEn)
+    : defaultContent.tracking;
+  const trackingText = content?.tracking
+    ? (language === 'ar' ? content.tracking.contentAr : content.tracking.contentEn)
+    : defaultContent.trackingText;
+
+  const notesTitle = content?.notes
+    ? (language === 'ar' ? content.notes.titleAr : content.notes.titleEn)
+    : defaultContent.notes;
+  const notesList = content?.notes?.metadata?.notes || defaultContent.notesList;
 
   return (
     <>
       <Head>
-        <title>{content.title} | {language === 'ar' ? 'شطابلي' : 'Shatably'}</title>
+        <title>{pageText.title} | {language === 'ar' ? 'شطابلي' : 'Shatably'}</title>
       </Head>
 
       <Header />
@@ -75,74 +170,82 @@ export default function ShippingPage() {
         <div className="container-custom max-w-4xl">
           {/* Header */}
           <div className="text-center mb-12">
-            <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">{content.title}</h1>
-            <p className="text-lg text-gray-600">{content.subtitle}</p>
+            <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">{pageText.title}</h1>
+            <p className="text-lg text-gray-600">{pageText.subtitle}</p>
           </div>
 
-          {/* Delivery Options */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-            <div className="bg-white rounded-xl shadow-sm p-6 text-center">
-              <div className="w-14 h-14 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Clock className="w-7 h-7 text-orange-600" />
-              </div>
-              <h3 className="font-semibold text-gray-900 mb-2">{content.expressTitle}</h3>
-              <p className="text-sm text-gray-600 mb-3">{content.expressDesc}</p>
-              <p className="text-sm font-medium text-primary-600">{content.expressFee}</p>
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-8 h-8 animate-spin text-primary-500" />
             </div>
-            <div className="bg-white rounded-xl shadow-sm p-6 text-center">
-              <div className="w-14 h-14 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Truck className="w-7 h-7 text-blue-600" />
-              </div>
-              <h3 className="font-semibold text-gray-900 mb-2">{content.scheduledTitle}</h3>
-              <p className="text-sm text-gray-600 mb-3">{content.scheduledDesc}</p>
-              <p className="text-sm font-medium text-primary-600">{content.scheduledFee}</p>
-            </div>
-            <div className="bg-white rounded-xl shadow-sm p-6 text-center">
-              <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Package className="w-7 h-7 text-green-600" />
-              </div>
-              <h3 className="font-semibold text-gray-900 mb-2">{content.freeTitle}</h3>
-              <p className="text-sm text-gray-600 mb-3">{content.freeDesc}</p>
-              <p className="text-sm text-gray-500">{content.freeCondition}</p>
-            </div>
-          </div>
-
-          {/* Delivery Areas */}
-          <div className="bg-white rounded-xl shadow-sm p-6 mb-8">
-            <div className="flex items-center gap-3 mb-4">
-              <MapPin className="w-6 h-6 text-primary-600" />
-              <h2 className="text-xl font-semibold text-gray-900">{content.areas}</h2>
-            </div>
-            <p className="text-gray-600 mb-4">{content.areasText}</p>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
-              {content.areasList.map((area, index) => (
-                <div key={index} className="flex items-center gap-2 text-gray-700">
-                  <CheckCircle className="w-4 h-4 text-green-500" />
-                  <span>{area}</span>
+          ) : (
+            <>
+              {/* Delivery Options */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+                <div className="bg-white rounded-xl shadow-sm p-6 text-center">
+                  <div className="w-14 h-14 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Clock className="w-7 h-7 text-orange-600" />
+                  </div>
+                  <h3 className="font-semibold text-gray-900 mb-2">{expressTitle}</h3>
+                  <p className="text-sm text-gray-600 mb-3">{expressDesc}</p>
+                  <p className="text-sm font-medium text-primary-600">{expressFee}</p>
                 </div>
-              ))}
-            </div>
-            <p className="text-sm text-gray-500">{content.otherAreas}</p>
-          </div>
+                <div className="bg-white rounded-xl shadow-sm p-6 text-center">
+                  <div className="w-14 h-14 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Truck className="w-7 h-7 text-blue-600" />
+                  </div>
+                  <h3 className="font-semibold text-gray-900 mb-2">{scheduledTitle}</h3>
+                  <p className="text-sm text-gray-600 mb-3">{scheduledDesc}</p>
+                  <p className="text-sm font-medium text-primary-600">{scheduledFee}</p>
+                </div>
+                <div className="bg-white rounded-xl shadow-sm p-6 text-center">
+                  <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Package className="w-7 h-7 text-green-600" />
+                  </div>
+                  <h3 className="font-semibold text-gray-900 mb-2">{freeTitle}</h3>
+                  <p className="text-sm text-gray-600 mb-3">{freeDesc}</p>
+                  <p className="text-sm text-gray-500">{freeCondition}</p>
+                </div>
+              </div>
 
-          {/* Tracking */}
-          <div className="bg-white rounded-xl shadow-sm p-6 mb-8">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">{content.tracking}</h2>
-            <p className="text-gray-600">{content.trackingText}</p>
-          </div>
+              {/* Delivery Areas */}
+              <div className="bg-white rounded-xl shadow-sm p-6 mb-8">
+                <div className="flex items-center gap-3 mb-4">
+                  <MapPin className="w-6 h-6 text-primary-600" />
+                  <h2 className="text-xl font-semibold text-gray-900">{areasTitle}</h2>
+                </div>
+                <p className="text-gray-600 mb-4">{areasText}</p>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
+                  {areasList.map((area: string, index: number) => (
+                    <div key={index} className="flex items-center gap-2 text-gray-700">
+                      <CheckCircle className="w-4 h-4 text-green-500" />
+                      <span>{area}</span>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-sm text-gray-500">{otherAreas}</p>
+              </div>
 
-          {/* Notes */}
-          <div className="bg-yellow-50 rounded-xl p-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">{content.notes}</h2>
-            <ul className="space-y-3">
-              {content.notesList.map((note, index) => (
-                <li key={index} className="flex items-start gap-3 text-gray-700">
-                  <CheckCircle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
-                  <span>{note}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
+              {/* Tracking */}
+              <div className="bg-white rounded-xl shadow-sm p-6 mb-8">
+                <h2 className="text-xl font-semibold text-gray-900 mb-4">{trackingTitle}</h2>
+                <p className="text-gray-600">{trackingText}</p>
+              </div>
+
+              {/* Notes */}
+              <div className="bg-yellow-50 rounded-xl p-6">
+                <h2 className="text-xl font-semibold text-gray-900 mb-4">{notesTitle}</h2>
+                <ul className="space-y-3">
+                  {notesList.map((note: string, index: number) => (
+                    <li key={index} className="flex items-start gap-3 text-gray-700">
+                      <CheckCircle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+                      <span>{note}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </>
+          )}
         </div>
       </main>
 

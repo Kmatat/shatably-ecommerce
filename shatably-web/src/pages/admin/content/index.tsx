@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import AdminLayout from '@/components/AdminLayout';
 import { useLanguageStore, useAuthStore } from '@/lib/store';
-import { FileText, Image, Megaphone, HelpCircle, Info, FileCheck, Shield, Plus, Edit2, Trash2, X, Save, Eye, EyeOff } from 'lucide-react';
+import { FileText, Image, Megaphone, HelpCircle, Info, FileCheck, Shield, Plus, Edit2, Trash2, X, Save, Eye, EyeOff, Truck, RotateCcw, Phone } from 'lucide-react';
 
 interface Content {
   id: string;
@@ -28,6 +28,9 @@ const contentTypes = [
   { value: 'about', icon: Info, color: 'bg-cyan-100 text-cyan-600' },
   { value: 'terms', icon: FileCheck, color: 'bg-orange-100 text-orange-600' },
   { value: 'privacy', icon: Shield, color: 'bg-red-100 text-red-600' },
+  { value: 'shipping', icon: Truck, color: 'bg-indigo-100 text-indigo-600' },
+  { value: 'returns', icon: RotateCcw, color: 'bg-pink-100 text-pink-600' },
+  { value: 'contact', icon: Phone, color: 'bg-teal-100 text-teal-600' },
 ];
 
 export default function ContentManagementPage() {
@@ -65,6 +68,9 @@ export default function ContentManagementPage() {
     about: { ar: 'من نحن', en: 'About' },
     terms: { ar: 'الشروط والأحكام', en: 'Terms' },
     privacy: { ar: 'سياسة الخصوصية', en: 'Privacy' },
+    shipping: { ar: 'الشحن والتوصيل', en: 'Shipping' },
+    returns: { ar: 'الإرجاع', en: 'Returns' },
+    contact: { ar: 'التواصل', en: 'Contact' },
     type: { ar: 'النوع', en: 'Type' },
     key: { ar: 'المفتاح', en: 'Key' },
     titleAr: { ar: 'العنوان (عربي)', en: 'Title (Arabic)' },
@@ -93,6 +99,9 @@ export default function ContentManagementPage() {
     about: t.about,
     terms: t.terms,
     privacy: t.privacy,
+    shipping: t.shipping,
+    returns: t.returns,
+    contact: t.contact,
   };
 
   useEffect(() => {
