@@ -1,6 +1,5 @@
 import { useRouter } from 'next/router';
 import Head from 'next/head';
-import Image from 'next/image';
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import {
@@ -17,6 +16,7 @@ import {
   Star,
   Check,
   Loader2,
+  ImageOff,
 } from 'lucide-react';
 import { Header, Footer, ProductCard } from '@/components';
 import { useCartStore, useLanguageStore, useUIStore } from '@/lib/store';
@@ -53,13 +53,11 @@ interface Product {
   };
 }
 
-const FALLBACK_IMAGE = 'https://placehold.co/600x600/e2e8f0/64748b?text=No+Image';
-
 // Helper function to get image URL from either string or ProductImage
-function getImageUrl(img: ProductImage | string | null | undefined): string {
-  if (!img) return FALLBACK_IMAGE;
+function getImageUrl(img: ProductImage | string | null | undefined): string | null {
+  if (!img) return null;
   const url = typeof img === 'string' ? img : img.url;
-  return url && url !== '' ? url : FALLBACK_IMAGE;
+  return url && url !== '' ? url : null;
 }
 
 export default function ProductPage() {
@@ -291,39 +289,47 @@ export default function ProductPage() {
               {/* Images */}
               <div>
                 <div className="relative aspect-square rounded-xl overflow-hidden bg-gray-100 mb-4">
-                  {product.images && product.images.length > 0 ? (
-                    <Image
-                      src={getImageUrl(product.images[selectedImage])}
+                  {product.images && product.images.length > 0 && getImageUrl(product.images[selectedImage]) ? (
+                    <img
+                      src={getImageUrl(product.images[selectedImage]) || ''}
                       alt={name}
-                      fill
-                      className="object-cover"
-                      priority
+                      className="absolute inset-0 w-full h-full object-cover"
                     />
                   ) : (
-                    <div className="flex items-center justify-center h-full text-gray-400">
-                      No image
+                    <div className="flex flex-col items-center justify-center h-full text-gray-400">
+                      <ImageOff className="w-16 h-16 mb-2" />
+                      <span>{language === 'ar' ? 'لا توجد صورة' : 'No image'}</span>
                     </div>
                   )}
                   {hasDiscount && (
-                    <span className="absolute top-4 start-4 bg-red-500 text-white px-3 py-1 rounded-full font-medium">
+                    <span className="absolute top-4 start-4 bg-red-500 text-white px-3 py-1 rounded-full font-medium z-10">
                       -{discountPercent}%
                     </span>
                   )}
                 </div>
                 {product.images && product.images.length > 1 && (
                   <div className="flex gap-2 overflow-x-auto pb-2">
-                    {product.images.map((img, index) => (
-                      <button
-                        key={index}
-                        onClick={() => setSelectedImage(index)}
-                        className={cn(
-                          'relative w-20 h-20 rounded-lg overflow-hidden flex-shrink-0 border-2 transition-colors',
-                          selectedImage === index ? 'border-primary-500' : 'border-transparent'
-                        )}
-                      >
-                        <Image src={getImageUrl(img)} alt="" fill className="object-cover" />
-                      </button>
-                    ))}
+                    {product.images.map((img, index) => {
+                      const imgUrl = getImageUrl(img);
+                      return (
+                        <button
+                          key={index}
+                          onClick={() => setSelectedImage(index)}
+                          className={cn(
+                            'relative w-20 h-20 rounded-lg overflow-hidden flex-shrink-0 border-2 transition-colors bg-gray-100',
+                            selectedImage === index ? 'border-primary-500' : 'border-transparent'
+                          )}
+                        >
+                          {imgUrl ? (
+                            <img src={imgUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />
+                          ) : (
+                            <div className="flex items-center justify-center h-full text-gray-300">
+                              <ImageOff className="w-6 h-6" />
+                            </div>
+                          )}
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
               </div>
