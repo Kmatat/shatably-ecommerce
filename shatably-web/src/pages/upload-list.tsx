@@ -22,11 +22,12 @@ interface UploadedFile {
   name: string;
   size: number;
   type: string;
+  file: File;
 }
 
 export default function UploadListPage() {
   const { language } = useLanguageStore();
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, token } = useAuthStore();
   const { openAuthModal } = useUIStore();
 
   const [status, setStatus] = useState<UploadStatus>('idle');
@@ -116,6 +117,7 @@ export default function UploadListPage() {
       name: file.name,
       size: file.size,
       type: file.type,
+      file,
     });
   };
 
@@ -136,11 +138,65 @@ export default function UploadListPage() {
       openAuthModal('login');
       return;
     }
-    if (!uploadedFile) return;
+    if (!uploadedFile || !token) return;
 
     setStatus('uploading');
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-    setStatus('submitted');
+
+    try {
+      // Step 1: Upload the file
+      const formData = new FormData();
+      formData.append('file', uploadedFile.file);
+
+      const uploadResponse = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/upload/material-list`,
+        {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData,
+        }
+      );
+
+      if (!uploadResponse.ok) {
+        throw new Error('File upload failed');
+      }
+
+      const uploadData = await uploadResponse.json();
+
+      // Step 2: Create material list entry
+      const listResponse = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/material-lists`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            fileName: uploadedFile.name,
+            fileUrl: uploadData.data.url,
+            fileType: uploadData.data.fileType,
+            notes: notes || undefined,
+          }),
+        }
+      );
+
+      if (!listResponse.ok) {
+        const errorData = await listResponse.json();
+        throw new Error(errorData.message || 'Failed to submit list');
+      }
+
+      setStatus('submitted');
+    } catch (error) {
+      console.error('Upload failed:', error);
+      alert(
+        error instanceof Error
+          ? error.message
+          : language === 'ar'
+          ? 'فشل في رفع الملف'
+          : 'Failed to upload file'
+      );
+      setStatus('idle');
+    }
   };
 
   const handleReset = () => {

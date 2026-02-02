@@ -1,4 +1,5 @@
 import { useRouter } from 'next/router';
+import { useState, useEffect } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -13,60 +14,78 @@ import {
   ArrowLeft,
   ArrowRight,
   Copy,
-  MessageCircle,
   RefreshCw,
+  Loader2,
+  AlertCircle,
 } from 'lucide-react';
 import { Header, Footer } from '@/components';
-import { useLanguageStore } from '@/lib/store';
+import { useLanguageStore, useAuthStore } from '@/lib/store';
 import { formatPrice, formatDate, cn } from '@/lib/utils';
-import { products } from '@/lib/data';
 
-// Mock order data
-const mockOrder = {
-  id: 'SH-ABC123',
-  status: 'in_transit',
-  statusHistory: [
-    { status: 'pending', date: '2024-01-24T10:30:00', completed: true },
-    { status: 'confirmed', date: '2024-01-24T10:35:00', completed: true },
-    { status: 'processing', date: '2024-01-24T11:00:00', completed: true },
-    { status: 'ready', date: '2024-01-24T14:00:00', completed: true },
-    { status: 'in_transit', date: '2024-01-24T15:30:00', completed: true },
-    { status: 'delivered', date: null, completed: false },
-  ],
-  items: [
-    { productId: 'cem-001', quantity: 10, unitPrice: 95 },
-    { productId: 'til-001', quantity: 5, unitPrice: 185 },
-    { productId: 'pnt-001', quantity: 2, unitPrice: 1450 },
-  ],
-  subtotal: 4775,
-  deliveryFee: 0,
-  discount: 0,
-  total: 4775,
-  deliveryType: 'scheduled',
-  scheduledDate: '2024-01-24',
-  scheduledTime: 'afternoon',
-  paymentMethod: 'cod',
-  address: {
-    label: 'المنزل',
-    fullAddress: 'شارع التحرير، الدقي، الجيزة',
-    contactName: 'أحمد محمد',
-    contactPhone: '01012345678',
-  },
-  driver: {
-    name: 'محمود علي',
-    phone: '01098765432',
-    vehicle: 'تويوتا هايلوكس - أبيض',
-    plateNumber: 'أ ب ج 1234',
-  },
-  createdAt: '2024-01-24T10:30:00',
-};
+interface OrderItem {
+  id: string;
+  productId: string;
+  nameAr: string;
+  nameEn: string;
+  sku: string;
+  price: number;
+  quantity: number;
+  total: number;
+  product?: {
+    images?: { url: string }[];
+  };
+}
+
+interface OrderAddress {
+  label: string;
+  fullAddress: string;
+  contactName: string;
+  contactPhone: string;
+}
+
+interface OrderDriver {
+  name: string;
+  phone: string;
+  vehicle?: string;
+  plateNumber?: string;
+}
+
+interface StatusHistoryItem {
+  status: string;
+  createdAt: string;
+  note?: string;
+}
+
+interface Order {
+  id: string;
+  orderNumber: string;
+  status: string;
+  statusHistory: StatusHistoryItem[];
+  items: OrderItem[];
+  subtotal: number;
+  deliveryFee: number;
+  discount: number;
+  total: number;
+  deliveryType: string;
+  scheduledDate?: string;
+  scheduledTime?: string;
+  paymentMethod: string;
+  paymentStatus: string;
+  address: OrderAddress;
+  driver?: OrderDriver;
+  createdAt: string;
+}
 
 export default function OrderDetailPage() {
   const router = useRouter();
   const { id } = router.query;
   const { language } = useLanguageStore();
+  const { token, isAuthenticated } = useAuthStore();
 
-  const order = mockOrder; // In real app, fetch by ID
+  const [order, setOrder] = useState<Order | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [copied, setCopied] = useState(false);
 
   const content = {
     ar: {
@@ -89,8 +108,10 @@ export default function OrderDetailPage() {
       copied: 'تم النسخ!',
       contactDriver: 'تواصل مع السائق',
       reorder: 'إعادة الطلب',
-      cancelOrder: 'إلغاء الطلب',
       back: 'رجوع',
+      loading: 'جاري التحميل...',
+      notFound: 'الطلب غير موجود',
+      loginRequired: 'يرجى تسجيل الدخول لعرض الطلب',
       statuses: {
         pending: 'قيد الانتظار',
         confirmed: 'تم التأكيد',
@@ -107,9 +128,10 @@ export default function OrderDetailPage() {
         ready: 'طلبك جاهز وبانتظار السائق',
         in_transit: 'السائق في الطريق إليك',
         delivered: 'تم توصيل طلبك بنجاح',
+        cancelled: 'تم إلغاء الطلب',
       },
-      estimatedDelivery: 'موعد التوصيل المتوقع',
       scheduledDelivery: 'التوصيل المجدول',
+      expressDelivery: 'توصيل سريع',
       timeSlots: {
         morning: 'صباحاً (8-12)',
         afternoon: 'ظهراً (12-4)',
@@ -122,7 +144,6 @@ export default function OrderDetailPage() {
         wallet: 'محفظة إلكترونية',
       },
       quantity: 'الكمية',
-      unit: 'الوحدة',
     },
     en: {
       orderDetails: 'Order Details',
@@ -144,8 +165,10 @@ export default function OrderDetailPage() {
       copied: 'Copied!',
       contactDriver: 'Contact Driver',
       reorder: 'Reorder',
-      cancelOrder: 'Cancel Order',
       back: 'Back',
+      loading: 'Loading...',
+      notFound: 'Order not found',
+      loginRequired: 'Please login to view order',
       statuses: {
         pending: 'Pending',
         confirmed: 'Confirmed',
@@ -162,9 +185,10 @@ export default function OrderDetailPage() {
         ready: 'Your order is ready for pickup',
         in_transit: 'Driver is on the way',
         delivered: 'Your order has been delivered',
+        cancelled: 'Order has been cancelled',
       },
-      estimatedDelivery: 'Estimated Delivery',
       scheduledDelivery: 'Scheduled Delivery',
+      expressDelivery: 'Express Delivery',
       timeSlots: {
         morning: 'Morning (8-12)',
         afternoon: 'Afternoon (12-4)',
@@ -177,12 +201,44 @@ export default function OrderDetailPage() {
         wallet: 'Mobile Wallet',
       },
       quantity: 'Quantity',
-      unit: 'Unit',
     },
   };
 
   const t = content[language];
   const BackArrow = language === 'ar' ? ArrowRight : ArrowLeft;
+
+  useEffect(() => {
+    const fetchOrder = async () => {
+      if (!id || !isAuthenticated || !token) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/orders/${id}`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          setOrder(data.data);
+        } else if (response.status === 404) {
+          setError(t.notFound);
+        } else {
+          setError('Failed to load order');
+        }
+      } catch (err) {
+        setError('Failed to load order');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchOrder();
+  }, [id, isAuthenticated, token]);
 
   const getStatusIcon = (status: string, isCompleted: boolean) => {
     if (status === 'delivered') return CheckCircle;
@@ -191,14 +247,101 @@ export default function OrderDetailPage() {
   };
 
   const handleCopyOrderNumber = () => {
-    navigator.clipboard.writeText(order.id);
-    // Show toast notification
+    if (order) {
+      navigator.clipboard.writeText(order.orderNumber);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
   };
+
+  const getStatusHistory = () => {
+    if (!order) return [];
+
+    const allStatuses = [
+      'pending',
+      'confirmed',
+      'processing',
+      'ready',
+      'in_transit',
+      'delivered',
+    ];
+
+    const historyMap = new Map(
+      order.statusHistory?.map((h) => [h.status, h.createdAt]) || []
+    );
+
+    const currentIndex = allStatuses.indexOf(order.status);
+
+    return allStatuses.map((status, index) => ({
+      status,
+      date: historyMap.get(status) || null,
+      completed: index <= currentIndex,
+    }));
+  };
+
+  // Loading state
+  if (loading) {
+    return (
+      <>
+        <Header />
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <div className="text-center">
+            <Loader2 className="w-8 h-8 animate-spin text-primary-500 mx-auto" />
+            <p className="mt-2 text-gray-600">{t.loading}</p>
+          </div>
+        </div>
+        <Footer />
+      </>
+    );
+  }
+
+  // Not authenticated
+  if (!isAuthenticated) {
+    return (
+      <>
+        <Header />
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <div className="text-center p-8">
+            <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+            <p className="text-gray-600">{t.loginRequired}</p>
+            <Link href="/orders" className="btn-primary mt-4 inline-block">
+              {t.back}
+            </Link>
+          </div>
+        </div>
+        <Footer />
+      </>
+    );
+  }
+
+  // Error or not found
+  if (error || !order) {
+    return (
+      <>
+        <Header />
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <div className="text-center p-8">
+            <Package className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+            <p className="text-gray-600">{error || t.notFound}</p>
+            <Link href="/orders" className="btn-primary mt-4 inline-block">
+              {t.back}
+            </Link>
+          </div>
+        </div>
+        <Footer />
+      </>
+    );
+  }
+
+  const statusHistory = getStatusHistory();
 
   return (
     <>
       <Head>
-        <title>{t.orderDetails} #{order.id} | {language === 'ar' ? 'شطابلي' : 'Shatably'}</title>
+        <title>
+          {t.orderDetails} #{order.orderNumber} |{' '}
+          {language === 'ar' ? 'شطابلي' : 'Shatably'}
+        </title>
       </Head>
 
       <Header />
@@ -219,7 +362,7 @@ export default function OrderDetailPage() {
               className="flex items-center gap-2 text-primary-600 hover:text-primary-700"
             >
               <Copy className="w-4 h-4" />
-              {t.copyOrderNumber}
+              {copied ? t.copied : t.copyOrderNumber}
             </button>
           </div>
 
@@ -227,14 +370,14 @@ export default function OrderDetailPage() {
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">
-                  {t.orderNumber}: {order.id}
+                  {t.orderNumber}: {order.orderNumber}
                 </h1>
                 <p className="text-gray-500">
                   {t.orderDate}: {formatDate(order.createdAt, language)}
                 </p>
               </div>
               <div className="flex gap-3">
-                <button className="btn-outline">
+                <button className="btn-outline flex items-center">
                   <RefreshCw className="w-4 h-4 me-2" />
                   {t.reorder}
                 </button>
@@ -244,7 +387,7 @@ export default function OrderDetailPage() {
             {/* Order Tracking */}
             <div className="mb-8">
               <h2 className="text-lg font-semibold mb-6">{t.trackOrder}</h2>
-              
+
               {/* Current Status */}
               <div className="bg-primary-50 rounded-xl p-4 mb-6">
                 <div className="flex items-center gap-4">
@@ -253,10 +396,13 @@ export default function OrderDetailPage() {
                   </div>
                   <div>
                     <p className="font-semibold text-primary-900">
-                      {t.statuses[order.status as keyof typeof t.statuses]}
+                      {t.statuses[order.status as keyof typeof t.statuses] ||
+                        order.status}
                     </p>
                     <p className="text-primary-700 text-sm">
-                      {t.statusDescriptions[order.status as keyof typeof t.statusDescriptions]}
+                      {t.statusDescriptions[
+                        order.status as keyof typeof t.statusDescriptions
+                      ] || ''}
                     </p>
                   </div>
                 </div>
@@ -264,13 +410,12 @@ export default function OrderDetailPage() {
 
               {/* Timeline */}
               <div className="relative">
-                {order.statusHistory.map((step, index) => {
+                {statusHistory.map((step, index) => {
                   const StatusIcon = getStatusIcon(step.status, step.completed);
-                  const isLast = index === order.statusHistory.length - 1;
-                  
+                  const isLast = index === statusHistory.length - 1;
+
                   return (
                     <div key={step.status} className="flex gap-4 pb-6 last:pb-0">
-                      {/* Line and icon */}
                       <div className="flex flex-col items-center">
                         <div
                           className={cn(
@@ -292,7 +437,6 @@ export default function OrderDetailPage() {
                         )}
                       </div>
 
-                      {/* Content */}
                       <div className="flex-1 min-w-0 pb-2">
                         <p
                           className={cn(
@@ -306,10 +450,7 @@ export default function OrderDetailPage() {
                           <p className="text-sm text-gray-500">
                             {new Date(step.date).toLocaleString(
                               language === 'ar' ? 'ar-EG' : 'en-EG',
-                              {
-                                dateStyle: 'medium',
-                                timeStyle: 'short',
-                              }
+                              { dateStyle: 'medium', timeStyle: 'short' }
                             )}
                           </p>
                         )}
@@ -320,7 +461,7 @@ export default function OrderDetailPage() {
               </div>
             </div>
 
-            {/* Driver Info (if in transit) */}
+            {/* Driver Info */}
             {order.status === 'in_transit' && order.driver && (
               <div className="bg-gray-50 rounded-xl p-4 mb-6">
                 <h3 className="font-semibold mb-3">{t.driverInfo}</h3>
@@ -330,15 +471,21 @@ export default function OrderDetailPage() {
                       <Truck className="w-6 h-6 text-gray-600" />
                     </div>
                     <div>
-                      <p className="font-medium text-gray-900">{order.driver.name}</p>
-                      <p className="text-sm text-gray-500">
-                        {order.driver.vehicle} • {order.driver.plateNumber}
+                      <p className="font-medium text-gray-900">
+                        {order.driver.name}
                       </p>
+                      {order.driver.vehicle && (
+                        <p className="text-sm text-gray-500">
+                          {order.driver.vehicle}
+                          {order.driver.plateNumber &&
+                            ` • ${order.driver.plateNumber}`}
+                        </p>
+                      )}
                     </div>
                   </div>
                   <a
                     href={`tel:${order.driver.phone}`}
-                    className="btn-primary"
+                    className="btn-primary flex items-center"
                   >
                     <Phone className="w-4 h-4 me-2" />
                     {t.contactDriver}
@@ -355,16 +502,20 @@ export default function OrderDetailPage() {
                 <h2 className="text-lg font-semibold mb-4">{t.orderItems}</h2>
                 <div className="space-y-4">
                   {order.items.map((item) => {
-                    const product = products.find((p) => p.id === item.productId);
-                    if (!product) return null;
-                    
-                    const name = language === 'ar' ? product.nameAr : product.nameEn;
-                    
+                    const name =
+                      language === 'ar' ? item.nameAr : item.nameEn;
+                    const imageUrl =
+                      item.product?.images?.[0]?.url ||
+                      'https://placehold.co/600x600/e2e8f0/64748b?text=No+Image';
+
                     return (
-                      <div key={item.productId} className="flex gap-4 pb-4 border-b last:border-0">
+                      <div
+                        key={item.id}
+                        className="flex gap-4 pb-4 border-b last:border-0"
+                      >
                         <div className="relative w-20 h-20 flex-shrink-0">
                           <Image
-                            src={product.images[0]}
+                            src={imageUrl}
                             alt={name}
                             fill
                             className="object-cover rounded-lg"
@@ -372,7 +523,7 @@ export default function OrderDetailPage() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <Link
-                            href={`/product/${product.id}`}
+                            href={`/product/${item.productId}`}
                             className="font-medium text-gray-900 hover:text-primary-600 line-clamp-2"
                           >
                             {name}
@@ -383,10 +534,10 @@ export default function OrderDetailPage() {
                         </div>
                         <div className="text-end">
                           <p className="font-semibold text-gray-900">
-                            {formatPrice(item.unitPrice * item.quantity, language)}
+                            {formatPrice(item.total, language)}
                           </p>
                           <p className="text-sm text-gray-500">
-                            {formatPrice(item.unitPrice, language)} × {item.quantity}
+                            {formatPrice(item.price, language)} × {item.quantity}
                           </p>
                         </div>
                       </div>
@@ -405,7 +556,9 @@ export default function OrderDetailPage() {
                   {t.deliveryAddress}
                 </h3>
                 <div className="text-gray-600">
-                  <p className="font-medium text-gray-900">{order.address.label}</p>
+                  <p className="font-medium text-gray-900">
+                    {order.address.label}
+                  </p>
                   <p>{order.address.fullAddress}</p>
                   <p className="mt-2">
                     {order.address.contactName} • {order.address.contactPhone}
@@ -420,11 +573,25 @@ export default function OrderDetailPage() {
                   {t.deliveryInfo}
                 </h3>
                 <div className="text-gray-600">
-                  <p>{t.scheduledDelivery}</p>
-                  <p className="font-medium text-gray-900">
-                    {formatDate(order.scheduledDate, language)}
+                  <p>
+                    {order.deliveryType === 'express'
+                      ? t.expressDelivery
+                      : t.scheduledDelivery}
                   </p>
-                  <p>{t.timeSlots[order.scheduledTime as keyof typeof t.timeSlots]}</p>
+                  {order.scheduledDate && (
+                    <>
+                      <p className="font-medium text-gray-900">
+                        {formatDate(order.scheduledDate, language)}
+                      </p>
+                      {order.scheduledTime && (
+                        <p>
+                          {t.timeSlots[
+                            order.scheduledTime as keyof typeof t.timeSlots
+                          ] || order.scheduledTime}
+                        </p>
+                      )}
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -435,7 +602,9 @@ export default function OrderDetailPage() {
                   {t.paymentMethod}
                 </h3>
                 <p className="text-gray-600">
-                  {t.paymentMethods[order.paymentMethod as keyof typeof t.paymentMethods]}
+                  {t.paymentMethods[
+                    order.paymentMethod as keyof typeof t.paymentMethods
+                  ] || order.paymentMethod}
                 </p>
               </div>
 
@@ -450,7 +619,9 @@ export default function OrderDetailPage() {
                   <div className="flex justify-between">
                     <span className="text-gray-600">{t.delivery}</span>
                     <span className={order.deliveryFee === 0 ? 'text-green-600' : ''}>
-                      {order.deliveryFee === 0 ? t.free : formatPrice(order.deliveryFee, language)}
+                      {order.deliveryFee === 0
+                        ? t.free
+                        : formatPrice(order.deliveryFee, language)}
                     </span>
                   </div>
                   {order.discount > 0 && (
@@ -462,7 +633,9 @@ export default function OrderDetailPage() {
                   <hr className="my-2" />
                   <div className="flex justify-between text-lg font-semibold">
                     <span>{t.total}</span>
-                    <span className="text-primary-600">{formatPrice(order.total, language)}</span>
+                    <span className="text-primary-600">
+                      {formatPrice(order.total, language)}
+                    </span>
                   </div>
                 </div>
               </div>

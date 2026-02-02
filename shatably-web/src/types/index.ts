@@ -56,8 +56,9 @@ export interface Address {
   userId: string;
   label: string;
   fullAddress: string;
-  district: string;
+  area: string;
   city: string;
+  governorate: string;
   latitude?: number;
   longitude?: number;
   landmark?: string;

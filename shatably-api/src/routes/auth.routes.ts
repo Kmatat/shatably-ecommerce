@@ -12,6 +12,15 @@ import otpService from '../services/otp.service';
 
 const router = Router();
 
+// Get JWT secret with validation
+const getJwtSecret = (): string => {
+  const secret = process.env.JWT_SECRET;
+  if (!secret || secret.length < 32) {
+    throw new Error('JWT_SECRET must be set and at least 32 characters long');
+  }
+  return secret;
+};
+
 // Validation schemas
 const registerSchema = z.object({
   phone: z.string().refine((val) => validateEgyptPhone(val), {
@@ -124,7 +133,7 @@ router.post('/register', validateBody(registerSchema), async (req, res, next) =>
         email: user.email,
         role: user.role,
       },
-      process.env.JWT_SECRET || 'secret',
+      getJwtSecret(),
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' } as jwt.SignOptions
     );
 
@@ -187,7 +196,7 @@ router.post('/login', validateBody(loginSchema), async (req, res, next) => {
         email: user.email,
         role: user.role,
       },
-      process.env.JWT_SECRET || 'secret',
+      getJwtSecret(),
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' } as jwt.SignOptions
     );
 
@@ -637,7 +646,7 @@ router.post('/login-password', validateBody(loginSchema), async (req, res, next)
         email: user.email,
         role: user.role,
       },
-      process.env.JWT_SECRET || 'secret',
+      getJwtSecret(),
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' } as jwt.SignOptions
     );
 

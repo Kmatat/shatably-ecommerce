@@ -3,6 +3,15 @@ import jwt from 'jsonwebtoken';
 import prisma from '../config/database';
 import { AppError } from './errorHandler';
 
+// Get JWT secret with validation
+const getJwtSecret = (): string => {
+  const secret = process.env.JWT_SECRET;
+  if (!secret || secret.length < 32) {
+    throw new Error('JWT_SECRET must be set and at least 32 characters long');
+  }
+  return secret;
+};
+
 export interface JwtPayload {
   userId: string;
   phone: string;
@@ -41,10 +50,7 @@ export const authenticate = async (
       throw new AppError('Authentication required', 401);
     }
 
-    const decoded = jwt.verify(
-      token,
-      process.env.JWT_SECRET || 'secret'
-    ) as JwtPayload;
+    const decoded = jwt.verify(token, getJwtSecret()) as JwtPayload;
 
     const user = await prisma.user.findUnique({
       where: { id: decoded.userId },
@@ -90,10 +96,7 @@ export const optionalAuth = async (
       return next();
     }
 
-    const decoded = jwt.verify(
-      token,
-      process.env.JWT_SECRET || 'secret'
-    ) as JwtPayload;
+    const decoded = jwt.verify(token, getJwtSecret()) as JwtPayload;
 
     const user = await prisma.user.findUnique({
       where: { id: decoded.userId },

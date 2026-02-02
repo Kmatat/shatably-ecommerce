@@ -186,16 +186,54 @@ export default function CheckoutPage() {
   ];
 
   const handlePlaceOrder = async () => {
+    if (!selectedAddressId || !token) return;
+
     setIsLoading(true);
-    
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-    
-    const newOrderNumber = generateOrderNumber();
-    setOrderNumber(newOrderNumber);
-    setOrderComplete(true);
-    clearCart();
-    setIsLoading(false);
+
+    try {
+      // Build order items from cart
+      const orderItems = items.map((item) => ({
+        productId: item.productId,
+        quantity: item.quantity,
+      }));
+
+      const orderData = {
+        addressId: selectedAddressId,
+        deliveryType,
+        scheduledDate: deliveryType === 'scheduled' ? selectedDate : undefined,
+        scheduledTime: deliveryType === 'scheduled' ? selectedTime : undefined,
+        paymentMethod,
+        items: orderItems,
+        notes: '',
+      };
+
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/orders`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(orderData),
+        }
+      );
+
+      const data = await response.json();
+
+      if (response.ok && data.data) {
+        setOrderNumber(data.data.orderNumber);
+        setOrderComplete(true);
+        clearCart();
+      } else {
+        alert(data.message || 'Failed to place order');
+      }
+    } catch (error) {
+      console.error('Order submission failed:', error);
+      alert(language === 'ar' ? 'فشل في إرسال الطلب' : 'Failed to submit order');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   if (items.length === 0 && !orderComplete) {
