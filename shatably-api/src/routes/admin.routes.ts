@@ -114,14 +114,18 @@ router.patch('/orders/:id/status', async (req, res, next) => {
 });
 
 // ============ PRODUCTS ============
+// Helper to handle empty strings as null for optional fields
+const emptyToNull = (schema: z.ZodTypeAny) => z.preprocess((val) => (val === '' ? null : val), schema.nullable().optional());
+const emptyStringToUndefined = z.preprocess((val) => (val === '' ? undefined : val), z.string().optional());
+
 const productSchema = z.object({
   nameAr: z.string().min(2), nameEn: z.string().min(2),
-  descriptionAr: z.string().optional(), descriptionEn: z.string().optional(),
-  price: z.number().positive(), originalPrice: z.number().positive().optional(),
+  descriptionAr: emptyStringToUndefined, descriptionEn: emptyStringToUndefined,
+  price: z.number().positive(), originalPrice: emptyToNull(z.number().positive()),
   unit: z.enum(['piece', 'bag', 'ton', 'meter', 'sqmeter', 'cubicmeter', 'kg', 'liter', 'box', 'roll']),
   stock: z.number().int().min(0), minOrderQty: z.number().int().positive().default(1),
-  maxOrderQty: z.number().int().positive().optional(), weight: z.number().positive().optional(),
-  categoryId: z.string().uuid(), brandId: z.string().uuid().optional(),
+  maxOrderQty: emptyToNull(z.number().int().positive()), weight: emptyToNull(z.number().positive()),
+  categoryId: z.string().uuid(), brandId: emptyToNull(z.string().uuid()),
   specifications: z.record(z.string()).optional(), isFeatured: z.boolean().optional(),
   images: z.array(z.object({ url: z.string().url(), alt: z.string().optional(), isPrimary: z.boolean().optional() })).optional(),
 });
@@ -740,16 +744,16 @@ router.delete('/promo-codes/:id', async (req, res, next) => {
 const contentSchema = z.object({
   type: z.enum(['banner', 'page', 'announcement', 'faq', 'about', 'terms', 'privacy', 'shipping', 'returns', 'contact']),
   key: z.string().min(2),
-  titleAr: z.string().optional(),
-  titleEn: z.string().optional(),
-  contentAr: z.string().optional(),
-  contentEn: z.string().optional(),
-  imageUrl: z.string().url().optional().nullable(),
-  linkUrl: z.string().optional().nullable(),
+  titleAr: emptyStringToUndefined,
+  titleEn: emptyStringToUndefined,
+  contentAr: emptyStringToUndefined,
+  contentEn: emptyStringToUndefined,
+  imageUrl: z.preprocess((val) => (val === '' ? null : val), z.string().url().nullable().optional()),
+  linkUrl: z.preprocess((val) => (val === '' ? null : val), z.string().nullable().optional()),
   sortOrder: z.number().int().optional(),
   isActive: z.boolean().optional(),
-  startDate: z.string().optional().nullable().transform((v) => v ? new Date(v) : null),
-  endDate: z.string().optional().nullable().transform((v) => v ? new Date(v) : null),
+  startDate: z.preprocess((val) => (val === '' ? null : val), z.string().nullable().optional()).transform((v) => v ? new Date(v) : null),
+  endDate: z.preprocess((val) => (val === '' ? null : val), z.string().nullable().optional()).transform((v) => v ? new Date(v) : null),
   metadata: z.record(z.any()).optional(),
 });
 
@@ -801,7 +805,7 @@ router.delete('/content/:id', async (req, res, next) => {
 const adminUserSchema = z.object({
   phone: z.string().min(10),
   name: z.string().min(2),
-  email: z.string().email().optional(),
+  email: z.preprocess((val) => (val === '' ? null : val), z.string().email().nullable().optional()),
   role: z.enum(['admin', 'employee', 'super_admin']),
   permissions: z.array(z.enum([
     'manage_products', 'manage_categories', 'manage_orders', 'manage_customers',
@@ -963,9 +967,9 @@ router.patch('/customers/:id/status', async (req, res, next) => {
 const driverSchema = z.object({
   name: z.string().min(2),
   phone: z.string().min(10),
-  email: z.string().email().optional(),
-  vehicle: z.string().optional(),
-  plateNumber: z.string().optional(),
+  email: z.preprocess((val) => (val === '' ? null : val), z.string().email().nullable().optional()),
+  vehicle: emptyStringToUndefined,
+  plateNumber: emptyStringToUndefined,
   isActive: z.boolean().optional(),
 });
 

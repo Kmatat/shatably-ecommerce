@@ -55,7 +55,7 @@ const changePasswordSchema = z.object({
 
 const updateProfileSchema = z.object({
   name: z.string().min(2).max(100).optional(),
-  email: z.string().email().optional(),
+  email: z.preprocess((val) => (val === '' ? null : val), z.string().email().nullable().optional()),
   type: z.enum(['homeowner', 'contractor', 'designer', 'worker']).optional(),
   languagePreference: z.enum(['ar', 'en']).optional(),
 });
