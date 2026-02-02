@@ -1,4 +1,4 @@
-import { PrismaClient, ProductUnit, ContentType } from '@prisma/client';
+import { PrismaClient, ProductUnit, ContentType, AttributeType } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -368,6 +368,232 @@ async function main() {
     create: { name: 'أحمد محمد', phone: '01111111111', email: 'driver@shatably.com', vehicle: 'تريلا', plateNumber: 'أ ب ج 1234', isActive: true },
   });
   console.log('✅ Sample driver created');
+
+  // ============ PRODUCT ATTRIBUTES (Building Materials specific) ============
+  console.log('\n🏗️ Creating building material attributes...');
+
+  const attributesData = [
+    {
+      nameAr: 'المقاس', nameEn: 'Size', slug: 'size', type: 'select' as AttributeType, unit: null, isRequired: true, sortOrder: 1,
+      options: [
+        // Tiles sizes
+        { valueAr: '20×20 سم', valueEn: '20x20 cm', sortOrder: 1 },
+        { valueAr: '30×30 سم', valueEn: '30x30 cm', sortOrder: 2 },
+        { valueAr: '40×40 سم', valueEn: '40x40 cm', sortOrder: 3 },
+        { valueAr: '50×50 سم', valueEn: '50x50 cm', sortOrder: 4 },
+        { valueAr: '60×60 سم', valueEn: '60x60 cm', sortOrder: 5 },
+        { valueAr: '80×80 سم', valueEn: '80x80 cm', sortOrder: 6 },
+        { valueAr: '100×100 سم', valueEn: '100x100 cm', sortOrder: 7 },
+        { valueAr: '60×120 سم', valueEn: '60x120 cm', sortOrder: 8 },
+        { valueAr: '80×160 سم', valueEn: '80x160 cm', sortOrder: 9 },
+        // Bricks sizes
+        { valueAr: '25×12×6 سم', valueEn: '25x12x6 cm', sortOrder: 10 },
+        { valueAr: '25×12×10 سم', valueEn: '25x12x10 cm', sortOrder: 11 },
+        // Pipes sizes
+        { valueAr: '½ بوصة', valueEn: '½ inch', sortOrder: 12 },
+        { valueAr: '¾ بوصة', valueEn: '¾ inch', sortOrder: 13 },
+        { valueAr: '1 بوصة', valueEn: '1 inch', sortOrder: 14 },
+        { valueAr: '1½ بوصة', valueEn: '1½ inch', sortOrder: 15 },
+        { valueAr: '2 بوصة', valueEn: '2 inch', sortOrder: 16 },
+        { valueAr: '3 بوصة', valueEn: '3 inch', sortOrder: 17 },
+        { valueAr: '4 بوصة', valueEn: '4 inch', sortOrder: 18 },
+        { valueAr: '6 بوصة', valueEn: '6 inch', sortOrder: 19 },
+      ],
+    },
+    {
+      nameAr: 'اللون', nameEn: 'Color', slug: 'color', type: 'color' as AttributeType, unit: null, isRequired: false, sortOrder: 2,
+      options: [
+        { valueAr: 'أبيض', valueEn: 'White', colorCode: '#FFFFFF', sortOrder: 1 },
+        { valueAr: 'بيج', valueEn: 'Beige', colorCode: '#F5F5DC', sortOrder: 2 },
+        { valueAr: 'كريمي', valueEn: 'Cream', colorCode: '#FFFDD0', sortOrder: 3 },
+        { valueAr: 'رمادي فاتح', valueEn: 'Light Gray', colorCode: '#D3D3D3', sortOrder: 4 },
+        { valueAr: 'رمادي', valueEn: 'Gray', colorCode: '#808080', sortOrder: 5 },
+        { valueAr: 'رمادي غامق', valueEn: 'Dark Gray', colorCode: '#404040', sortOrder: 6 },
+        { valueAr: 'أسود', valueEn: 'Black', colorCode: '#000000', sortOrder: 7 },
+        { valueAr: 'بني', valueEn: 'Brown', colorCode: '#8B4513', sortOrder: 8 },
+        { valueAr: 'خشبي', valueEn: 'Wood', colorCode: '#DEB887', sortOrder: 9 },
+        { valueAr: 'رخامي', valueEn: 'Marble', colorCode: '#E8E8E8', sortOrder: 10 },
+        { valueAr: 'أزرق', valueEn: 'Blue', colorCode: '#0000FF', sortOrder: 11 },
+        { valueAr: 'أخضر', valueEn: 'Green', colorCode: '#008000', sortOrder: 12 },
+        { valueAr: 'أحمر', valueEn: 'Red', colorCode: '#FF0000', sortOrder: 13 },
+        { valueAr: 'ذهبي', valueEn: 'Gold', colorCode: '#FFD700', sortOrder: 14 },
+        { valueAr: 'فضي', valueEn: 'Silver', colorCode: '#C0C0C0', sortOrder: 15 },
+      ],
+    },
+    {
+      nameAr: 'التشطيب', nameEn: 'Finish', slug: 'finish', type: 'select' as AttributeType, unit: null, isRequired: false, sortOrder: 3,
+      options: [
+        { valueAr: 'لامع', valueEn: 'Glossy', sortOrder: 1 },
+        { valueAr: 'مطفي', valueEn: 'Matte', sortOrder: 2 },
+        { valueAr: 'نصف لامع', valueEn: 'Semi-Gloss', sortOrder: 3 },
+        { valueAr: 'ساتان', valueEn: 'Satin', sortOrder: 4 },
+        { valueAr: 'محبب', valueEn: 'Textured', sortOrder: 5 },
+        { valueAr: 'مصقول', valueEn: 'Polished', sortOrder: 6 },
+        { valueAr: 'غير مصقول', valueEn: 'Unpolished', sortOrder: 7 },
+        { valueAr: 'خشن', valueEn: 'Rough', sortOrder: 8 },
+        { valueAr: 'ناعم', valueEn: 'Smooth', sortOrder: 9 },
+        { valueAr: 'مقاوم للانزلاق', valueEn: 'Anti-slip', sortOrder: 10 },
+      ],
+    },
+    {
+      nameAr: 'السُمك', nameEn: 'Thickness', slug: 'thickness', type: 'select' as AttributeType, unit: 'مم', isRequired: false, sortOrder: 4,
+      options: [
+        { valueAr: '5 مم', valueEn: '5mm', sortOrder: 1 },
+        { valueAr: '6 مم', valueEn: '6mm', sortOrder: 2 },
+        { valueAr: '8 مم', valueEn: '8mm', sortOrder: 3 },
+        { valueAr: '9 مم', valueEn: '9mm', sortOrder: 4 },
+        { valueAr: '10 مم', valueEn: '10mm', sortOrder: 5 },
+        { valueAr: '12 مم', valueEn: '12mm', sortOrder: 6 },
+        { valueAr: '15 مم', valueEn: '15mm', sortOrder: 7 },
+        { valueAr: '18 مم', valueEn: '18mm', sortOrder: 8 },
+        { valueAr: '20 مم', valueEn: '20mm', sortOrder: 9 },
+        { valueAr: '25 مم', valueEn: '25mm', sortOrder: 10 },
+      ],
+    },
+    {
+      nameAr: 'درجة الجودة', nameEn: 'Grade', slug: 'grade', type: 'select' as AttributeType, unit: null, isRequired: false, sortOrder: 5,
+      options: [
+        { valueAr: 'الدرجة الأولى', valueEn: 'First Grade', sortOrder: 1 },
+        { valueAr: 'الدرجة الثانية', valueEn: 'Second Grade', sortOrder: 2 },
+        { valueAr: 'الدرجة الثالثة', valueEn: 'Third Grade', sortOrder: 3 },
+        { valueAr: 'تجاري', valueEn: 'Commercial', sortOrder: 4 },
+        { valueAr: 'ممتاز', valueEn: 'Premium', sortOrder: 5 },
+      ],
+    },
+    {
+      nameAr: 'مقاومة الماء', nameEn: 'Water Resistance', slug: 'water-resistance', type: 'select' as AttributeType, unit: null, isRequired: false, sortOrder: 6,
+      options: [
+        { valueAr: 'مقاوم للماء', valueEn: 'Waterproof', sortOrder: 1 },
+        { valueAr: 'مقاوم للرطوبة', valueEn: 'Moisture Resistant', sortOrder: 2 },
+        { valueAr: 'غير مقاوم', valueEn: 'Not Resistant', sortOrder: 3 },
+      ],
+    },
+    {
+      nameAr: 'الاستخدام', nameEn: 'Usage', slug: 'usage', type: 'multiselect' as AttributeType, unit: null, isRequired: false, sortOrder: 7,
+      options: [
+        { valueAr: 'داخلي', valueEn: 'Indoor', sortOrder: 1 },
+        { valueAr: 'خارجي', valueEn: 'Outdoor', sortOrder: 2 },
+        { valueAr: 'أرضيات', valueEn: 'Floor', sortOrder: 3 },
+        { valueAr: 'حوائط', valueEn: 'Wall', sortOrder: 4 },
+        { valueAr: 'حمامات', valueEn: 'Bathroom', sortOrder: 5 },
+        { valueAr: 'مطابخ', valueEn: 'Kitchen', sortOrder: 6 },
+        { valueAr: 'غرف معيشة', valueEn: 'Living Room', sortOrder: 7 },
+        { valueAr: 'غرف نوم', valueEn: 'Bedroom', sortOrder: 8 },
+        { valueAr: 'واجهات', valueEn: 'Facade', sortOrder: 9 },
+        { valueAr: 'حدائق', valueEn: 'Garden', sortOrder: 10 },
+      ],
+    },
+    {
+      nameAr: 'نوع المادة', nameEn: 'Material Type', slug: 'material-type', type: 'select' as AttributeType, unit: null, isRequired: false, sortOrder: 8,
+      options: [
+        // Pipes
+        { valueAr: 'PPR', valueEn: 'PPR', sortOrder: 1 },
+        { valueAr: 'PVC', valueEn: 'PVC', sortOrder: 2 },
+        { valueAr: 'UPVC', valueEn: 'UPVC', sortOrder: 3 },
+        { valueAr: 'نحاس', valueEn: 'Copper', sortOrder: 4 },
+        { valueAr: 'حديد مجلفن', valueEn: 'Galvanized Iron', sortOrder: 5 },
+        // Wires
+        { valueAr: 'نحاس صافي', valueEn: 'Pure Copper', sortOrder: 6 },
+        { valueAr: 'ألومنيوم', valueEn: 'Aluminum', sortOrder: 7 },
+        // Steel
+        { valueAr: 'حديد 40', valueEn: 'Steel 40', sortOrder: 8 },
+        { valueAr: 'حديد 52', valueEn: 'Steel 52', sortOrder: 9 },
+        { valueAr: 'حديد 60', valueEn: 'Steel 60', sortOrder: 10 },
+        // Tiles
+        { valueAr: 'سيراميك', valueEn: 'Ceramic', sortOrder: 11 },
+        { valueAr: 'بورسلين', valueEn: 'Porcelain', sortOrder: 12 },
+        { valueAr: 'رخام طبيعي', valueEn: 'Natural Marble', sortOrder: 13 },
+        { valueAr: 'جرانيت', valueEn: 'Granite', sortOrder: 14 },
+        { valueAr: 'خشب طبيعي', valueEn: 'Natural Wood', sortOrder: 15 },
+        { valueAr: 'HDF', valueEn: 'HDF', sortOrder: 16 },
+        { valueAr: 'باركيه', valueEn: 'Parquet', sortOrder: 17 },
+      ],
+    },
+    {
+      nameAr: 'قطر السلك', nameEn: 'Wire Diameter', slug: 'wire-diameter', type: 'select' as AttributeType, unit: 'مم²', isRequired: false, sortOrder: 9,
+      options: [
+        { valueAr: '1 مم²', valueEn: '1 mm²', sortOrder: 1 },
+        { valueAr: '1.5 مم²', valueEn: '1.5 mm²', sortOrder: 2 },
+        { valueAr: '2.5 مم²', valueEn: '2.5 mm²', sortOrder: 3 },
+        { valueAr: '4 مم²', valueEn: '4 mm²', sortOrder: 4 },
+        { valueAr: '6 مم²', valueEn: '6 mm²', sortOrder: 5 },
+        { valueAr: '10 مم²', valueEn: '10 mm²', sortOrder: 6 },
+        { valueAr: '16 مم²', valueEn: '16 mm²', sortOrder: 7 },
+        { valueAr: '25 مم²', valueEn: '25 mm²', sortOrder: 8 },
+      ],
+    },
+    {
+      nameAr: 'قطر الحديد', nameEn: 'Rebar Diameter', slug: 'rebar-diameter', type: 'select' as AttributeType, unit: 'مم', isRequired: false, sortOrder: 10,
+      options: [
+        { valueAr: '8 مم', valueEn: '8mm', sortOrder: 1 },
+        { valueAr: '10 مم', valueEn: '10mm', sortOrder: 2 },
+        { valueAr: '12 مم', valueEn: '12mm', sortOrder: 3 },
+        { valueAr: '14 مم', valueEn: '14mm', sortOrder: 4 },
+        { valueAr: '16 مم', valueEn: '16mm', sortOrder: 5 },
+        { valueAr: '18 مم', valueEn: '18mm', sortOrder: 6 },
+        { valueAr: '20 مم', valueEn: '20mm', sortOrder: 7 },
+        { valueAr: '22 مم', valueEn: '22mm', sortOrder: 8 },
+        { valueAr: '25 مم', valueEn: '25mm', sortOrder: 9 },
+        { valueAr: '28 مم', valueEn: '28mm', sortOrder: 10 },
+        { valueAr: '32 مم', valueEn: '32mm', sortOrder: 11 },
+      ],
+    },
+    {
+      nameAr: 'السعة', nameEn: 'Capacity', slug: 'capacity', type: 'select' as AttributeType, unit: null, isRequired: false, sortOrder: 11,
+      options: [
+        // Water tanks
+        { valueAr: '500 لتر', valueEn: '500 Liters', sortOrder: 1 },
+        { valueAr: '1000 لتر', valueEn: '1000 Liters', sortOrder: 2 },
+        { valueAr: '1500 لتر', valueEn: '1500 Liters', sortOrder: 3 },
+        { valueAr: '2000 لتر', valueEn: '2000 Liters', sortOrder: 4 },
+        { valueAr: '3000 لتر', valueEn: '3000 Liters', sortOrder: 5 },
+        { valueAr: '5000 لتر', valueEn: '5000 Liters', sortOrder: 6 },
+        // Water heaters
+        { valueAr: '30 لتر', valueEn: '30 Liters', sortOrder: 7 },
+        { valueAr: '40 لتر', valueEn: '40 Liters', sortOrder: 8 },
+        { valueAr: '50 لتر', valueEn: '50 Liters', sortOrder: 9 },
+        { valueAr: '80 لتر', valueEn: '80 Liters', sortOrder: 10 },
+        { valueAr: '100 لتر', valueEn: '100 Liters', sortOrder: 11 },
+        // Paint
+        { valueAr: '1 لتر', valueEn: '1 Liter', sortOrder: 12 },
+        { valueAr: '4 لتر', valueEn: '4 Liters', sortOrder: 13 },
+        { valueAr: '9 لتر', valueEn: '9 Liters', sortOrder: 14 },
+        { valueAr: '18 لتر', valueEn: '18 Liters', sortOrder: 15 },
+      ],
+    },
+    {
+      nameAr: 'الطول', nameEn: 'Length', slug: 'length', type: 'select' as AttributeType, unit: 'متر', isRequired: false, sortOrder: 12,
+      options: [
+        { valueAr: '1 متر', valueEn: '1 Meter', sortOrder: 1 },
+        { valueAr: '2 متر', valueEn: '2 Meters', sortOrder: 2 },
+        { valueAr: '3 متر', valueEn: '3 Meters', sortOrder: 3 },
+        { valueAr: '4 متر', valueEn: '4 Meters', sortOrder: 4 },
+        { valueAr: '6 متر', valueEn: '6 Meters', sortOrder: 5 },
+        { valueAr: '12 متر', valueEn: '12 Meters', sortOrder: 6 },
+        { valueAr: '50 متر', valueEn: '50 Meters', sortOrder: 7 },
+        { valueAr: '100 متر', valueEn: '100 Meters', sortOrder: 8 },
+      ],
+    },
+  ];
+
+  for (const attr of attributesData) {
+    const { options, ...attrData } = attr;
+    const attribute = await prisma.attribute.upsert({
+      where: { slug: attrData.slug },
+      update: attrData,
+      create: attrData,
+    });
+
+    // Create options for this attribute
+    for (const opt of options) {
+      await prisma.attributeOption.upsert({
+        where: { id: `${attribute.id}-${opt.sortOrder}` },
+        update: { ...opt, attributeId: attribute.id },
+        create: { ...opt, attributeId: attribute.id },
+      });
+    }
+  }
+  console.log(`✅ ${attributesData.length} product attributes created with options`);
 
   console.log('\n🎉 Database seeding completed successfully!');
   console.log('📱 Admin Login: 01000000000');

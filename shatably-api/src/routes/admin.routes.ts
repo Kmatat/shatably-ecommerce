@@ -450,6 +450,194 @@ router.delete('/brands/:id', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+// ============ ATTRIBUTES ============
+router.get('/attributes', async (req, res, next) => {
+  try {
+    const attributes = await prisma.attribute.findMany({
+      where: { isActive: true },
+      include: { options: { where: { isActive: true }, orderBy: { sortOrder: 'asc' } } },
+      orderBy: { sortOrder: 'asc' },
+    });
+    res.json({ success: true, data: attributes });
+  } catch (error) { next(error); }
+});
+
+router.post('/attributes', async (req, res, next) => {
+  try {
+    const { nameAr, nameEn, type, unit, isRequired, options } = req.body;
+    const slug = slugify(nameEn);
+
+    const attribute = await prisma.attribute.create({
+      data: {
+        nameAr, nameEn, slug, type, unit, isRequired,
+        options: options ? { create: options.map((opt: any, i: number) => ({ ...opt, sortOrder: i })) } : undefined,
+      },
+      include: { options: true },
+    });
+    res.status(201).json({ success: true, data: attribute });
+  } catch (error) { next(error); }
+});
+
+router.put('/attributes/:id', async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { nameAr, nameEn, type, unit, isRequired, options } = req.body;
+
+    await prisma.$transaction(async (tx) => {
+      await tx.attribute.update({ where: { id }, data: { nameAr, nameEn, type, unit, isRequired } });
+      if (options) {
+        // Delete removed options, update existing, create new
+        const existingIds = options.filter((o: any) => o.id).map((o: any) => o.id);
+        await tx.attributeOption.deleteMany({ where: { attributeId: id, id: { notIn: existingIds } } });
+        for (const opt of options) {
+          if (opt.id) {
+            await tx.attributeOption.update({ where: { id: opt.id }, data: { valueAr: opt.valueAr, valueEn: opt.valueEn, colorCode: opt.colorCode, sortOrder: opt.sortOrder } });
+          } else {
+            await tx.attributeOption.create({ data: { attributeId: id, valueAr: opt.valueAr, valueEn: opt.valueEn, colorCode: opt.colorCode, sortOrder: opt.sortOrder || 0 } });
+          }
+        }
+      }
+    });
+
+    const attribute = await prisma.attribute.findUnique({ where: { id }, include: { options: { orderBy: { sortOrder: 'asc' } } } });
+    res.json({ success: true, data: attribute });
+  } catch (error) { next(error); }
+});
+
+router.delete('/attributes/:id', async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    await prisma.attribute.delete({ where: { id } });
+    res.json({ success: true, message: 'Attribute deleted' });
+  } catch (error) { next(error); }
+});
+
+// ============ PRODUCT VARIATIONS ============
+router.get('/products/:productId/variations', async (req, res, next) => {
+  try {
+    const { productId } = req.params;
+    const variations = await prisma.productVariation.findMany({
+      where: { productId },
+      include: { options: { include: { option: { include: { attribute: true } } } } },
+      orderBy: { createdAt: 'asc' },
+    });
+    res.json({ success: true, data: variations });
+  } catch (error) { next(error); }
+});
+
+router.post('/products/:productId/variations', async (req, res, next) => {
+  try {
+    const { productId } = req.params;
+    const { price, originalPrice, stock, weight, imageUrl, optionIds } = req.body;
+
+    // Generate variation SKU
+    const product = await prisma.product.findUnique({ where: { id: productId } });
+    if (!product) throw new AppError('Product not found', 404);
+
+    const variationCount = await prisma.productVariation.count({ where: { productId } });
+    const sku = `${product.sku}-V${variationCount + 1}`;
+
+    const variation = await prisma.productVariation.create({
+      data: {
+        productId, sku, price, originalPrice, stock, weight, imageUrl,
+        options: optionIds ? { create: optionIds.map((optId: string) => ({ optionId: optId })) } : undefined,
+      },
+      include: { options: { include: { option: { include: { attribute: true } } } } },
+    });
+
+    // Mark product as having variations
+    await prisma.product.update({ where: { id: productId }, data: { hasVariations: true } });
+
+    res.status(201).json({ success: true, data: variation });
+  } catch (error) { next(error); }
+});
+
+router.put('/products/:productId/variations/:id', async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { price, originalPrice, stock, weight, imageUrl, isActive, optionIds } = req.body;
+
+    await prisma.$transaction(async (tx) => {
+      await tx.productVariation.update({
+        where: { id },
+        data: { price, originalPrice, stock, weight, imageUrl, isActive },
+      });
+      if (optionIds) {
+        await tx.variationOption.deleteMany({ where: { variationId: id } });
+        await tx.variationOption.createMany({
+          data: optionIds.map((optId: string) => ({ variationId: id, optionId: optId })),
+        });
+      }
+    });
+
+    const variation = await prisma.productVariation.findUnique({
+      where: { id },
+      include: { options: { include: { option: { include: { attribute: true } } } } },
+    });
+    res.json({ success: true, data: variation });
+  } catch (error) { next(error); }
+});
+
+router.delete('/products/:productId/variations/:id', async (req, res, next) => {
+  try {
+    const { productId, id } = req.params;
+    await prisma.productVariation.delete({ where: { id } });
+
+    // Check if product still has variations
+    const count = await prisma.productVariation.count({ where: { productId } });
+    if (count === 0) {
+      await prisma.product.update({ where: { id: productId }, data: { hasVariations: false } });
+    }
+
+    res.json({ success: true, message: 'Variation deleted' });
+  } catch (error) { next(error); }
+});
+
+// ============ PRODUCT ATTRIBUTES (assign to products) ============
+router.get('/products/:productId/attributes', async (req, res, next) => {
+  try {
+    const { productId } = req.params;
+    const values = await prisma.productAttributeValue.findMany({
+      where: { productId },
+      include: { attribute: true, option: true },
+    });
+    res.json({ success: true, data: values });
+  } catch (error) { next(error); }
+});
+
+router.put('/products/:productId/attributes', async (req, res, next) => {
+  try {
+    const { productId } = req.params;
+    const { attributes } = req.body; // Array of { attributeId, optionIds?: string[], customValue?: string }
+
+    await prisma.$transaction(async (tx) => {
+      // Delete existing attribute values
+      await tx.productAttributeValue.deleteMany({ where: { productId } });
+
+      // Create new attribute values
+      for (const attr of attributes) {
+        if (attr.optionIds && attr.optionIds.length > 0) {
+          // Multi-select or single-select with options
+          await tx.productAttributeValue.createMany({
+            data: attr.optionIds.map((optId: string) => ({ productId, attributeId: attr.attributeId, optionId: optId })),
+          });
+        } else if (attr.customValue) {
+          // Text or number custom value
+          await tx.productAttributeValue.create({
+            data: { productId, attributeId: attr.attributeId, customValue: attr.customValue },
+          });
+        }
+      }
+    });
+
+    const values = await prisma.productAttributeValue.findMany({
+      where: { productId },
+      include: { attribute: true, option: true },
+    });
+    res.json({ success: true, data: values });
+  } catch (error) { next(error); }
+});
+
 // ============ MATERIAL LISTS ============
 router.get('/material-lists', async (req, res, next) => {
   try {

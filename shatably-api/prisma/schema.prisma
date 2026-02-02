@@ -179,6 +179,7 @@ model Product {
   categoryId      String
   brandId         String?
   specifications  Json?
+  hasVariations   Boolean     @default(false)
   isFeatured      Boolean     @default(false)
   isActive        Boolean     @default(true)
   createdAt       DateTime    @default(now())
@@ -187,6 +188,8 @@ model Product {
   category   Category      @relation(fields: [categoryId], references: [id])
   brand      Brand?        @relation(fields: [brandId], references: [id])
   images     ProductImage[]
+  attributes ProductAttributeValue[]
+  variations ProductVariation[]
   cartItems  CartItem[]
   orderItems OrderItem[]
   wishlist   Wishlist[]
@@ -197,6 +200,109 @@ model Product {
   @@index([brandId])
   @@index([isFeatured])
   @@index([price])
+}
+
+// ============ PRODUCT ATTRIBUTES (Building Materials specific) ============
+
+enum AttributeType {
+  select      // Single choice from options
+  multiselect // Multiple choices
+  text        // Free text input
+  number      // Numeric value
+  color       // Color picker
+}
+
+// Predefined attributes for building materials
+model Attribute {
+  id          String        @id @default(uuid())
+  nameAr      String
+  nameEn      String
+  slug        String        @unique
+  type        AttributeType @default(select)
+  unit        String?       // e.g., "cm", "mm", "kg/m²"
+  isRequired  Boolean       @default(false)
+  sortOrder   Int           @default(0)
+  isActive    Boolean       @default(true)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  options AttributeOption[]
+  values  ProductAttributeValue[]
+
+  @@index([slug])
+}
+
+// Predefined options for select/multiselect attributes
+model AttributeOption {
+  id          String   @id @default(uuid())
+  attributeId String
+  valueAr     String
+  valueEn     String
+  colorCode   String?  // For color attributes (hex code)
+  sortOrder   Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  attribute         Attribute               @relation(fields: [attributeId], references: [id], onDelete: Cascade)
+  productValues     ProductAttributeValue[]
+  variationOptions  VariationOption[]
+
+  @@index([attributeId])
+}
+
+// Product's attribute values (e.g., this tile comes in 60x60, 80x80)
+model ProductAttributeValue {
+  id          String  @id @default(uuid())
+  productId   String
+  attributeId String
+  optionId    String? // For select/multiselect types
+  customValue String? // For text/number types
+
+  product   Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
+  attribute Attribute        @relation(fields: [attributeId], references: [id], onDelete: Cascade)
+  option    AttributeOption? @relation(fields: [optionId], references: [id])
+
+  @@unique([productId, attributeId, optionId])
+  @@index([productId])
+  @@index([attributeId])
+}
+
+// ============ PRODUCT VARIATIONS ============
+
+// A specific combination of attributes with its own price/stock
+model ProductVariation {
+  id            String   @id @default(uuid())
+  productId     String
+  sku           String   @unique
+  price         Decimal  @db.Decimal(10, 2)
+  originalPrice Decimal? @db.Decimal(10, 2)
+  stock         Int      @default(0)
+  weight        Decimal? @db.Decimal(10, 2)
+  imageUrl      String?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  product    Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
+  options    VariationOption[]
+  cartItems  CartItem[]
+  orderItems OrderItem[]
+
+  @@index([productId])
+  @@index([sku])
+}
+
+// Links a variation to specific attribute options
+model VariationOption {
+  id          String @id @default(uuid())
+  variationId String
+  optionId    String
+
+  variation ProductVariation @relation(fields: [variationId], references: [id], onDelete: Cascade)
+  option    AttributeOption  @relation(fields: [optionId], references: [id], onDelete: Cascade)
+
+  @@unique([variationId, optionId])
+  @@index([variationId])
 }
 
 model ProductImage {
@@ -243,17 +349,19 @@ model Cart {
 }
 
 model CartItem {
-  id        String   @id @default(uuid())
-  cartId    String
-  productId String
-  quantity  Int      @default(1)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String   @id @default(uuid())
+  cartId      String
+  productId   String
+  variationId String?
+  quantity    Int      @default(1)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  cart    Cart    @relation(fields: [cartId], references: [id], onDelete: Cascade)
-  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  cart      Cart              @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  product   Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variation ProductVariation? @relation(fields: [variationId], references: [id])
 
-  @@unique([cartId, productId])
+  @@unique([cartId, productId, variationId])
   @@index([cartId])
 }
 
@@ -338,18 +446,21 @@ model Order {
 }
 
 model OrderItem {
-  id        String  @id @default(uuid())
-  orderId   String
-  productId String
-  nameAr    String  // Snapshot at order time
-  nameEn    String
-  sku       String
-  price     Decimal @db.Decimal(10, 2)
-  quantity  Int
-  total     Decimal @db.Decimal(10, 2)
+  id              String  @id @default(uuid())
+  orderId         String
+  productId       String
+  variationId     String?
+  nameAr          String  // Snapshot at order time
+  nameEn          String
+  sku             String
+  variationLabel  String? // e.g., "60x60cm - White"
+  price           Decimal @db.Decimal(10, 2)
+  quantity        Int
+  total           Decimal @db.Decimal(10, 2)
 
-  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product Product @relation(fields: [productId], references: [id])
+  order     Order             @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product   Product           @relation(fields: [productId], references: [id])
+  variation ProductVariation? @relation(fields: [variationId], references: [id])
 
   @@index([orderId])
 }

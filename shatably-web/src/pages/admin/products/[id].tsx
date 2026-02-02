@@ -37,6 +37,34 @@ interface ProductImage {
   isPrimary?: boolean;
 }
 
+interface Attribute {
+  id: string;
+  nameAr: string;
+  nameEn: string;
+  slug: string;
+  type: string;
+  unit: string | null;
+  options: AttributeOption[];
+}
+
+interface AttributeOption {
+  id: string;
+  valueAr: string;
+  valueEn: string;
+  colorCode: string | null;
+}
+
+interface ProductVariation {
+  id: string;
+  sku: string;
+  price: number;
+  originalPrice: number | null;
+  stock: number;
+  imageUrl: string | null;
+  isActive: boolean;
+  options: { option: AttributeOption & { attribute: Attribute } }[];
+}
+
 interface ProductForm {
   nameAr: string;
   nameEn: string;
@@ -81,10 +109,16 @@ export default function ProductEditPage() {
   const [saving, setSaving] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [brands, setBrands] = useState<Brand[]>([]);
+  const [attributes, setAttributes] = useState<Attribute[]>([]);
+  const [variations, setVariations] = useState<ProductVariation[]>([]);
+  const [selectedAttributes, setSelectedAttributes] = useState<Record<string, string[]>>({});
   const [newImageUrl, setNewImageUrl] = useState('');
   const [specKey, setSpecKey] = useState('');
   const [specValue, setSpecValue] = useState('');
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [showVariationModal, setShowVariationModal] = useState(false);
+  const [editingVariation, setEditingVariation] = useState<ProductVariation | null>(null);
+  const [variationForm, setVariationForm] = useState({ price: 0, originalPrice: null as number | null, stock: 0, imageUrl: '', optionIds: [] as string[] });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState<ProductForm>({
@@ -145,13 +179,24 @@ export default function ProductEditPage() {
     specValue: language === 'ar' ? 'القيمة' : 'Value',
     addSpec: language === 'ar' ? 'إضافة' : 'Add',
     required: language === 'ar' ? 'مطلوب' : 'Required',
+    attributes: language === 'ar' ? 'الخصائص والمواصفات' : 'Attributes & Options',
+    selectOptions: language === 'ar' ? 'اختر الخيارات المتاحة' : 'Select available options',
+    variations: language === 'ar' ? 'المتغيرات' : 'Variations',
+    addVariation: language === 'ar' ? 'إضافة متغير' : 'Add Variation',
+    editVariation: language === 'ar' ? 'تعديل المتغير' : 'Edit Variation',
+    noVariations: language === 'ar' ? 'لا توجد متغيرات' : 'No variations added',
+    variationOptions: language === 'ar' ? 'خيارات المتغير' : 'Variation Options',
+    cancel: language === 'ar' ? 'إلغاء' : 'Cancel',
   };
 
   useEffect(() => {
     fetchCategories();
     fetchBrands();
+    fetchAttributes();
     if (!isNew && id) {
       fetchProduct();
+      fetchVariations();
+      fetchProductAttributes();
     }
   }, [id, isNew]);
 
@@ -180,6 +225,58 @@ export default function ProductEditPage() {
       }
     } catch (error) {
       console.error('Failed to fetch brands:', error);
+    }
+  };
+
+  const fetchAttributes = async () => {
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/attributes`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setAttributes(data.data || []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch attributes:', error);
+    }
+  };
+
+  const fetchVariations = async () => {
+    if (!id || isNew) return;
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/products/${id}/variations`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setVariations(data.data || []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch variations:', error);
+    }
+  };
+
+  const fetchProductAttributes = async () => {
+    if (!id || isNew) return;
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/products/${id}/attributes`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        // Group by attribute
+        const grouped: Record<string, string[]> = {};
+        (data.data || []).forEach((val: any) => {
+          if (val.optionId) {
+            if (!grouped[val.attributeId]) grouped[val.attributeId] = [];
+            grouped[val.attributeId].push(val.optionId);
+          }
+        });
+        setSelectedAttributes(grouped);
+      }
+    } catch (error) {
+      console.error('Failed to fetch product attributes:', error);
     }
   };
 
@@ -249,6 +346,12 @@ export default function ProductEditPage() {
       });
 
       if (response.ok) {
+        const data = await response.json();
+        const productId = data.data?.id || id;
+        // Save attributes
+        if (productId) {
+          await saveProductAttributes(productId);
+        }
         router.push('/admin/products');
       } else {
         const error = await response.json();
@@ -327,6 +430,81 @@ export default function ProductEditPage() {
     const newSpecs = { ...form.specifications };
     delete newSpecs[key];
     setForm({ ...form, specifications: newSpecs });
+  };
+
+  const toggleAttributeOption = (attributeId: string, optionId: string) => {
+    setSelectedAttributes((prev) => {
+      const current = prev[attributeId] || [];
+      const isSelected = current.includes(optionId);
+      return {
+        ...prev,
+        [attributeId]: isSelected ? current.filter((id) => id !== optionId) : [...current, optionId],
+      };
+    });
+  };
+
+  const saveProductAttributes = async (productId: string) => {
+    const attributesPayload = Object.entries(selectedAttributes)
+      .filter(([_, optionIds]) => optionIds.length > 0)
+      .map(([attributeId, optionIds]) => ({ attributeId, optionIds }));
+
+    if (attributesPayload.length === 0) return;
+
+    await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/products/${productId}/attributes`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ attributes: attributesPayload }),
+    });
+  };
+
+  const openVariationModal = (variation?: ProductVariation) => {
+    if (variation) {
+      setEditingVariation(variation);
+      setVariationForm({
+        price: variation.price,
+        originalPrice: variation.originalPrice,
+        stock: variation.stock,
+        imageUrl: variation.imageUrl || '',
+        optionIds: variation.options.map((o) => o.option.id),
+      });
+    } else {
+      setEditingVariation(null);
+      setVariationForm({ price: form.price, originalPrice: form.originalPrice, stock: 0, imageUrl: '', optionIds: [] });
+    }
+    setShowVariationModal(true);
+  };
+
+  const saveVariation = async () => {
+    if (!id || isNew) return;
+    try {
+      const url = editingVariation
+        ? `${process.env.NEXT_PUBLIC_API_URL}/admin/products/${id}/variations/${editingVariation.id}`
+        : `${process.env.NEXT_PUBLIC_API_URL}/admin/products/${id}/variations`;
+
+      await fetch(url, {
+        method: editingVariation ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(variationForm),
+      });
+
+      setShowVariationModal(false);
+      fetchVariations();
+    } catch (error) {
+      console.error('Failed to save variation:', error);
+    }
+  };
+
+  const deleteVariation = async (variationId: string) => {
+    if (!confirm(language === 'ar' ? 'هل أنت متأكد من الحذف؟' : 'Are you sure you want to delete?')) return;
+    try {
+      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/products/${id}/variations/${variationId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      fetchVariations();
+    } catch (error) {
+      console.error('Failed to delete variation:', error);
+    }
   };
 
   if (loading) {
@@ -650,6 +828,108 @@ export default function ProductEditPage() {
                   )}
                 </div>
               </div>
+
+              {/* Attributes */}
+              <div className="bg-white rounded-xl shadow-sm p-6">
+                <h2 className="font-semibold text-lg mb-4">{t.attributes}</h2>
+                <p className="text-sm text-gray-500 mb-4">{t.selectOptions}</p>
+                <div className="space-y-4">
+                  {attributes.map((attr) => (
+                    <div key={attr.id} className="border rounded-lg p-4">
+                      <h3 className="font-medium mb-3 flex items-center gap-2">
+                        {language === 'ar' ? attr.nameAr : attr.nameEn}
+                        {attr.unit && <span className="text-xs text-gray-400">({attr.unit})</span>}
+                      </h3>
+                      <div className="flex flex-wrap gap-2">
+                        {attr.options.map((opt) => {
+                          const isSelected = (selectedAttributes[attr.id] || []).includes(opt.id);
+                          return (
+                            <button
+                              key={opt.id}
+                              type="button"
+                              onClick={() => toggleAttributeOption(attr.id, opt.id)}
+                              className={cn(
+                                'px-3 py-1.5 rounded-lg border text-sm transition-colors flex items-center gap-2',
+                                isSelected ? 'bg-primary-500 text-white border-primary-500' : 'bg-white hover:bg-gray-50'
+                              )}
+                            >
+                              {opt.colorCode && (
+                                <span
+                                  className="w-4 h-4 rounded-full border border-gray-300"
+                                  style={{ backgroundColor: opt.colorCode }}
+                                />
+                              )}
+                              {language === 'ar' ? opt.valueAr : opt.valueEn}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                  {attributes.length === 0 && (
+                    <p className="text-center text-gray-400 py-4">
+                      {language === 'ar' ? 'لا توجد خصائص متاحة' : 'No attributes available'}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Variations (only show for existing products) */}
+              {!isNew && (
+                <div className="bg-white rounded-xl shadow-sm p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="font-semibold text-lg">{t.variations}</h2>
+                    <button
+                      type="button"
+                      onClick={() => openVariationModal()}
+                      className="flex items-center gap-1 text-sm text-primary-600 hover:text-primary-700"
+                    >
+                      <Plus className="w-4 h-4" />
+                      {t.addVariation}
+                    </button>
+                  </div>
+                  {variations.length > 0 ? (
+                    <div className="space-y-3">
+                      {variations.map((variation) => (
+                        <div key={variation.id} className="border rounded-lg p-3">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="font-mono text-sm text-gray-500">{variation.sku}</span>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => openVariationModal(variation)}
+                                className="p-1 text-blue-600 hover:bg-blue-50 rounded"
+                              >
+                                <Package className="w-4 h-4" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => deleteVariation(variation.id)}
+                                className="p-1 text-red-600 hover:bg-red-50 rounded"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                          <div className="flex flex-wrap gap-1 mb-2">
+                            {variation.options.map((vo) => (
+                              <span key={vo.option.id} className="px-2 py-0.5 bg-gray-100 text-xs rounded">
+                                {language === 'ar' ? vo.option.valueAr : vo.option.valueEn}
+                              </span>
+                            ))}
+                          </div>
+                          <div className="flex items-center gap-4 text-sm">
+                            <span className="font-medium">{variation.price} {language === 'ar' ? 'ج.م' : 'EGP'}</span>
+                            <span className="text-gray-500">{language === 'ar' ? 'المخزون:' : 'Stock:'} {variation.stock}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-center text-gray-400 py-4">{t.noVariations}</p>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Sidebar */}
@@ -721,6 +1001,128 @@ export default function ProductEditPage() {
             </div>
           </div>
         </form>
+
+        {/* Variation Modal */}
+        {showVariationModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+              <div className="p-4 border-b flex items-center justify-between sticky top-0 bg-white">
+                <h3 className="font-semibold text-lg">
+                  {editingVariation ? t.editVariation : t.addVariation}
+                </h3>
+                <button onClick={() => setShowVariationModal(false)} className="p-1 hover:bg-gray-100 rounded">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="p-4 space-y-4">
+                {/* Variation Options */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">{t.variationOptions}</label>
+                  <div className="space-y-3">
+                    {attributes.map((attr) => {
+                      const selectedOpts = selectedAttributes[attr.id] || [];
+                      if (selectedOpts.length === 0) return null;
+                      return (
+                        <div key={attr.id}>
+                          <span className="text-sm text-gray-500">{language === 'ar' ? attr.nameAr : attr.nameEn}</span>
+                          <div className="flex flex-wrap gap-2 mt-1">
+                            {attr.options.filter((o) => selectedOpts.includes(o.id)).map((opt) => {
+                              const isSelected = variationForm.optionIds.includes(opt.id);
+                              return (
+                                <button
+                                  key={opt.id}
+                                  type="button"
+                                  onClick={() => setVariationForm((prev) => ({
+                                    ...prev,
+                                    optionIds: isSelected
+                                      ? prev.optionIds.filter((id) => id !== opt.id)
+                                      : [...prev.optionIds.filter((id) => !attr.options.some((o) => o.id === id)), opt.id]
+                                  }))}
+                                  className={cn(
+                                    'px-3 py-1.5 rounded-lg border text-sm transition-colors',
+                                    isSelected ? 'bg-primary-500 text-white border-primary-500' : 'bg-white hover:bg-gray-50'
+                                  )}
+                                >
+                                  {language === 'ar' ? opt.valueAr : opt.valueEn}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Price */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t.price}</label>
+                    <input
+                      type="number"
+                      value={variationForm.price}
+                      onChange={(e) => setVariationForm({ ...variationForm, price: Number(e.target.value) })}
+                      className="w-full border rounded-lg px-4 py-2"
+                      min="0"
+                      step="0.01"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t.originalPrice}</label>
+                    <input
+                      type="number"
+                      value={variationForm.originalPrice || ''}
+                      onChange={(e) => setVariationForm({ ...variationForm, originalPrice: e.target.value ? Number(e.target.value) : null })}
+                      className="w-full border rounded-lg px-4 py-2"
+                      min="0"
+                      step="0.01"
+                    />
+                  </div>
+                </div>
+
+                {/* Stock */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t.stock}</label>
+                  <input
+                    type="number"
+                    value={variationForm.stock}
+                    onChange={(e) => setVariationForm({ ...variationForm, stock: Number(e.target.value) })}
+                    className="w-full border rounded-lg px-4 py-2"
+                    min="0"
+                  />
+                </div>
+
+                {/* Image URL */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t.imageUrl}</label>
+                  <input
+                    type="url"
+                    value={variationForm.imageUrl}
+                    onChange={(e) => setVariationForm({ ...variationForm, imageUrl: e.target.value })}
+                    className="w-full border rounded-lg px-4 py-2"
+                    placeholder="https://..."
+                  />
+                </div>
+              </div>
+              <div className="p-4 border-t flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowVariationModal(false)}
+                  className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50"
+                >
+                  {t.cancel}
+                </button>
+                <button
+                  type="button"
+                  onClick={saveVariation}
+                  className="flex-1 px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600"
+                >
+                  {t.save}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </AdminLayout>
     </>
   );
