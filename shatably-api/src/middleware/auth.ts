@@ -127,7 +127,7 @@ export const requireAdmin = async (
     return next(new AppError('Authentication required', 401));
   }
 
-  if (req.user.role !== 'admin' && req.user.role !== 'employee') {
+  if (req.user.role !== 'admin' && req.user.role !== 'employee' && req.user.role !== 'super_admin') {
     return next(new AppError('Admin access required', 403));
   }
 
