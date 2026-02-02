@@ -31,11 +31,19 @@ interface Category {
   }[];
 }
 
+interface StoreSettings {
+  nameAr: string;
+  nameEn: string;
+  phone: string;
+  email: string;
+}
+
 export default function Header() {
   const { t, i18n } = useTranslation();
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [categories, setCategories] = useState<Category[]>([]);
+  const [settings, setSettings] = useState<StoreSettings | null>(null);
 
   useEffect(() => {
     const fetchCategories = async () => {
@@ -49,7 +57,21 @@ export default function Header() {
         console.error('Failed to fetch categories:', error);
       }
     };
+
+    const fetchSettings = async () => {
+      try {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/settings`);
+        if (response.ok) {
+          const data = await response.json();
+          setSettings(data.data?.store || null);
+        }
+      } catch (error) {
+        console.error('Failed to fetch settings:', error);
+      }
+    };
+
     fetchCategories();
+    fetchSettings();
   }, []);
   
   const { getItemCount } = useCartStore();
@@ -75,7 +97,7 @@ export default function Header() {
       <div className="bg-primary-600 text-white text-sm py-2">
         <div className="container-custom flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <span>📞 16XXX</span>
+            <span>📞 {settings?.phone || '16XXX'}</span>
             <span className="hidden sm:inline">
               {language === 'ar' ? 'توصيل سريع خلال 3 ساعات' : 'Express delivery within 3 hours'}
             </span>
@@ -109,7 +131,7 @@ export default function Header() {
             </div>
             <div className="hidden sm:block">
               <h1 className="text-xl font-bold text-primary-600">
-                {language === 'ar' ? 'شطابلي' : 'Shatably'}
+                {settings ? (language === 'ar' ? settings.nameAr : settings.nameEn) : (language === 'ar' ? 'شطابلي' : 'Shatably')}
               </h1>
               <p className="text-xs text-gray-500">
                 {language === 'ar' ? 'مواد البناء' : 'Building Materials'}

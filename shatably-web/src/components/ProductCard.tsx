@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { ShoppingCart, Heart, Star } from 'lucide-react';
@@ -13,15 +13,29 @@ interface ProductCardProps {
   variant?: 'default' | 'compact' | 'horizontal';
 }
 
+const FALLBACK_IMAGE = 'https://placehold.co/600x600/e2e8f0/64748b?text=No+Image';
+
 export default function ProductCard({ product, variant = 'default' }: ProductCardProps) {
   const { language } = useLanguageStore();
   const { addItem } = useCartStore();
   const { showNotification } = useUIStore();
+  const [imageError, setImageError] = useState(false);
 
   const name = language === 'ar' ? product.nameAr : product.nameEn;
-  const imageUrl = product.images && product.images.length > 0 && product.images[0]
-    ? product.images[0]
-    : 'https://placehold.co/600x600/e2e8f0/64748b?text=No+Image';
+
+  // Handle both string URLs and object format { url: string }
+  const getImageUrl = () => {
+    if (imageError) return FALLBACK_IMAGE;
+    if (!product.images || product.images.length === 0) return FALLBACK_IMAGE;
+    const firstImage = product.images[0];
+    if (!firstImage) return FALLBACK_IMAGE;
+    // Handle case where image might be an object with url property
+    const url = typeof firstImage === 'string' ? firstImage : (firstImage as any)?.url;
+    if (!url || url === '') return FALLBACK_IMAGE;
+    return url;
+  };
+
+  const imageUrl = getImageUrl();
   const hasDiscount = product.originalPrice && product.originalPrice > product.price;
   const discountPercent = hasDiscount
     ? Math.round(((product.originalPrice! - product.price) / product.originalPrice!) * 100)
@@ -47,6 +61,7 @@ export default function ProductCard({ product, variant = 'default' }: ProductCar
               alt={name}
               fill
               className="object-cover rounded-lg"
+              onError={() => setImageError(true)}
             />
             {hasDiscount && (
               <span className="absolute top-2 start-2 bg-red-500 text-white text-xs px-2 py-1 rounded-full font-medium">
@@ -102,6 +117,7 @@ export default function ProductCard({ product, variant = 'default' }: ProductCar
             alt={name}
             fill
             className="object-cover group-hover:scale-105 transition-transform duration-300"
+            onError={() => setImageError(true)}
           />
           
           {/* Badges */}

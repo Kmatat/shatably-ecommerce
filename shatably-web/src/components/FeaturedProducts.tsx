@@ -21,7 +21,20 @@ interface ApiProduct {
   isFeatured?: boolean;
 }
 
+const FALLBACK_IMAGE = 'https://placehold.co/600x600/e2e8f0/64748b?text=No+Image';
+
 function transformProduct(p: ApiProduct): Product {
+  // Ensure images is always a valid string array
+  let images: string[] = [FALLBACK_IMAGE];
+  if (p.images && Array.isArray(p.images) && p.images.length > 0) {
+    images = p.images.map(img => {
+      if (typeof img === 'string' && img !== '') return img;
+      if (img && typeof img === 'object' && (img as any).url) return (img as any).url;
+      return FALLBACK_IMAGE;
+    }).filter(url => url !== '');
+    if (images.length === 0) images = [FALLBACK_IMAGE];
+  }
+
   return {
     id: p.id,
     sku: p.sku,
@@ -31,7 +44,7 @@ function transformProduct(p: ApiProduct): Product {
     descriptionEn: '',
     price: p.price,
     originalPrice: p.originalPrice || undefined,
-    images: p.images && p.images.length > 0 ? p.images : ['https://placehold.co/600x600/e2e8f0/64748b?text=No+Image'],
+    images,
     categoryId: p.categoryId || '',
     stock: p.stock,
     unit: p.unit as any,

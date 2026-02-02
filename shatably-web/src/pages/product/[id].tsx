@@ -53,9 +53,13 @@ interface Product {
   };
 }
 
+const FALLBACK_IMAGE = 'https://placehold.co/600x600/e2e8f0/64748b?text=No+Image';
+
 // Helper function to get image URL from either string or ProductImage
-function getImageUrl(img: ProductImage | string): string {
-  return typeof img === 'string' ? img : img.url;
+function getImageUrl(img: ProductImage | string | null | undefined): string {
+  if (!img) return FALLBACK_IMAGE;
+  const url = typeof img === 'string' ? img : img.url;
+  return url && url !== '' ? url : FALLBACK_IMAGE;
 }
 
 export default function ProductPage() {
