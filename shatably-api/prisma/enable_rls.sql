@@ -24,6 +24,12 @@ ALTER TABLE "MaterialList" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "PromoCode" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "Setting" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "Content" ENABLE ROW LEVEL SECURITY;
+-- Product Attributes and Variations tables
+ALTER TABLE "Attribute" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "AttributeOption" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "ProductAttributeValue" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "ProductVariation" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "VariationOption" ENABLE ROW LEVEL SECURITY;
 
 -- Create policies that allow all operations for the postgres role
 -- (This is the role used by Prisma through the connection string)
@@ -107,4 +113,24 @@ CREATE POLICY "Allow postgres full access to Setting" ON "Setting"
 
 -- Content table
 CREATE POLICY "Allow postgres full access to Content" ON "Content"
+  FOR ALL TO postgres USING (true) WITH CHECK (true);
+
+-- Attribute table
+CREATE POLICY "Allow postgres full access to Attribute" ON "Attribute"
+  FOR ALL TO postgres USING (true) WITH CHECK (true);
+
+-- AttributeOption table
+CREATE POLICY "Allow postgres full access to AttributeOption" ON "AttributeOption"
+  FOR ALL TO postgres USING (true) WITH CHECK (true);
+
+-- ProductAttributeValue table
+CREATE POLICY "Allow postgres full access to ProductAttributeValue" ON "ProductAttributeValue"
+  FOR ALL TO postgres USING (true) WITH CHECK (true);
+
+-- ProductVariation table
+CREATE POLICY "Allow postgres full access to ProductVariation" ON "ProductVariation"
+  FOR ALL TO postgres USING (true) WITH CHECK (true);
+
+-- VariationOption table
+CREATE POLICY "Allow postgres full access to VariationOption" ON "VariationOption"
   FOR ALL TO postgres USING (true) WITH CHECK (true);
