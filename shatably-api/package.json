@@ -42,6 +42,9 @@
     "@types/uuid": "^9.0.7",
     "tsx": "^4.7.0"
   },
+  "prisma": {
+    "seed": "tsx src/scripts/seed.ts"
+  },
   "engines": {
     "node": ">=18.0.0"
   }
