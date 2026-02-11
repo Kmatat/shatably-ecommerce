@@ -25,6 +25,14 @@ router.get('/', async (req, res, next) => {
           email: general.email,
           currency: general.currency,
           defaultLanguage: general.defaultLanguage,
+          address: {
+            ar: general.addressAr || '',
+            en: general.addressEn || '',
+          },
+          workingHours: {
+            ar: general.workingHoursAr || '',
+            en: general.workingHoursEn || '',
+          },
         },
         delivery: {
           expressEnabled: true,
