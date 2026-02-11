@@ -284,6 +284,99 @@ async function main() {
     { sku: 'GYP-BOARD-MR', nameAr: 'جبس بورد مقاوم للرطوبة', nameEn: 'Moisture Resistant Gypsum Board', descriptionAr: 'ألواح جبس مقاومة للرطوبة.', descriptionEn: 'Moisture resistant gypsum boards.', price: 250, unit: ProductUnit.piece, stock: 300, categorySlug: 'gypsum', minOrderQty: 10 },
   ];
 
+  // Product image URLs mapped by category slug for realistic images
+  const categoryImages: Record<string, string[]> = {
+    'cement': [
+      'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=600',
+      'https://images.unsplash.com/photo-1590937276221-4820e8e9c3d8?w=600',
+      'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=600',
+    ],
+    'steel': [
+      'https://images.unsplash.com/photo-1474540412665-1cdae210ae6b?w=600',
+      'https://images.unsplash.com/photo-1530982011887-3cc11cc85693?w=600',
+      'https://images.unsplash.com/photo-1567789884554-0b844b597180?w=600',
+    ],
+    'bricks': [
+      'https://images.unsplash.com/photo-1590073242678-70ee3fc28f8e?w=600',
+      'https://images.unsplash.com/photo-1585704032915-c3400ca199e7?w=600',
+      'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=600',
+    ],
+    'sand': [
+      'https://images.unsplash.com/photo-1509664158656-23a6cba4c91e?w=600',
+      'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=600',
+    ],
+    'gravel': [
+      'https://images.unsplash.com/photo-1509664158656-23a6cba4c91e?w=600',
+      'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=600',
+    ],
+    'tiles': [
+      'https://images.unsplash.com/photo-1615971677499-5467cbab01c0?w=600',
+      'https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?w=600',
+      'https://images.unsplash.com/photo-1616047006789-b7af5afb8c20?w=600',
+    ],
+    'porcelain': [
+      'https://images.unsplash.com/photo-1615971677499-5467cbab01c0?w=600',
+      'https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?w=600',
+      'https://images.unsplash.com/photo-1616047006789-b7af5afb8c20?w=600',
+    ],
+    'paints': [
+      'https://images.unsplash.com/photo-1589939705384-5185137a7f0f?w=600',
+      'https://images.unsplash.com/photo-1562259949-e8e7689d7828?w=600',
+      'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=600',
+    ],
+    'wiring': [
+      'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=600',
+      'https://images.unsplash.com/photo-1558346490-a72e53ae2d4f?w=600',
+      'https://images.unsplash.com/photo-1601084881623-cdf9a8ea242c?w=600',
+    ],
+    'switches': [
+      'https://images.unsplash.com/photo-1558346490-a72e53ae2d4f?w=600',
+      'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=600',
+    ],
+    'led': [
+      'https://images.unsplash.com/photo-1565814329452-e1432341ced4?w=600',
+      'https://images.unsplash.com/photo-1524484485831-a92ffc0de03f?w=600',
+      'https://images.unsplash.com/photo-1507494924047-60b8ee826ca9?w=600',
+    ],
+    'ppr-pipes': [
+      'https://images.unsplash.com/photo-1585704032915-c3400ca199e7?w=600',
+      'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=600',
+    ],
+    'faucets': [
+      'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?w=600',
+      'https://images.unsplash.com/photo-1552321554-5fefe8c9ef14?w=600',
+      'https://images.unsplash.com/photo-1564540586988-aa4e53c3d799?w=600',
+    ],
+    'bathroom': [
+      'https://images.unsplash.com/photo-1552321554-5fefe8c9ef14?w=600',
+      'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?w=600',
+      'https://images.unsplash.com/photo-1507089947368-19c1da9775ae?w=600',
+    ],
+    'power-tools': [
+      'https://images.unsplash.com/photo-1504148455328-c376907d081c?w=600',
+      'https://images.unsplash.com/photo-1581147036324-c17ac41f3a1b?w=600',
+      'https://images.unsplash.com/photo-1572981779307-38b8cabb2407?w=600',
+    ],
+    'hand-tools': [
+      'https://images.unsplash.com/photo-1581147036324-c17ac41f3a1b?w=600',
+      'https://images.unsplash.com/photo-1530124566582-a45a7e5a5e70?w=600',
+      'https://images.unsplash.com/photo-1504148455328-c376907d081c?w=600',
+    ],
+    'adhesives': [
+      'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=600',
+      'https://images.unsplash.com/photo-1585704032915-c3400ca199e7?w=600',
+    ],
+    'waterproofing': [
+      'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=600',
+      'https://images.unsplash.com/photo-1585704032915-c3400ca199e7?w=600',
+    ],
+    'gypsum': [
+      'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=600',
+      'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=600',
+    ],
+  };
+
+  let productIndex = 0;
   for (const product of productsData) {
     const categoryId = categoryMap[product.categorySlug];
     const brandId = product.brandSlug ? brandMap[product.brandSlug] : undefined;
@@ -306,20 +399,45 @@ async function main() {
           data: { ...productData, categoryId, brandId, isActive: true },
         });
 
-    // Add placeholder image
-    await prisma.productImage.upsert({
-      where: { id: `${created.id}-img` },
-      update: {},
-      create: {
-        id: `${created.id}-img`,
+    // Delete existing images for this product to re-seed fresh
+    await prisma.productImage.deleteMany({ where: { productId: created.id } });
+
+    // Get images for this product's category
+    const images = categoryImages[product.categorySlug] || [
+      'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=600',
+    ];
+
+    // Use a rotating index to vary which image is primary for products in the same category
+    const startIdx = productIndex % images.length;
+
+    // Add primary image
+    await prisma.productImage.create({
+      data: {
         productId: created.id,
-        url: `https://placehold.co/600x600/e2e8f0/64748b?text=${encodeURIComponent(product.nameEn.substring(0, 20))}`,
+        url: images[startIdx],
+        alt: product.nameEn,
         isPrimary: true,
         sortOrder: 0,
       },
     });
+
+    // Add gallery images (remaining images from the category set)
+    for (let i = 1; i < images.length; i++) {
+      const imgIdx = (startIdx + i) % images.length;
+      await prisma.productImage.create({
+        data: {
+          productId: created.id,
+          url: images[imgIdx],
+          alt: `${product.nameEn} - ${i + 1}`,
+          isPrimary: false,
+          sortOrder: i,
+        },
+      });
+    }
+
+    productIndex++;
   }
-  console.log(`✅ ${productsData.length} products created`);
+  console.log(`✅ ${productsData.length} products created with images`);
 
   // Create CMS Content
   const contentData = [
