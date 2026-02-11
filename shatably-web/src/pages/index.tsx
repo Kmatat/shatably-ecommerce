@@ -1,4 +1,5 @@
 import Head from 'next/head';
+import { useState, useEffect } from 'react';
 import { useLanguageStore } from '@/lib/store';
 import {
   Header,
@@ -61,40 +62,75 @@ export default function Home() {
   );
 }
 
+interface Feature {
+  icon: string;
+  titleAr: string;
+  titleEn: string;
+  descAr: string;
+  descEn: string;
+}
+
 // Why Shatably Section
 function WhyShatably() {
   const { language } = useLanguageStore();
+  const [features, setFeatures] = useState<Feature[]>([]);
 
-  const features = [
-    {
-      icon: '🚚',
-      titleAr: 'توصيل سريع',
-      titleEn: 'Fast Delivery',
-      descAr: 'توصيل خلال 3 ساعات للطلبات العاجلة أو اختر موعد يناسبك',
-      descEn: '3-hour delivery for urgent orders or schedule at your convenience',
-    },
-    {
-      icon: '💰',
-      titleAr: 'أسعار تنافسية',
-      titleEn: 'Competitive Prices',
-      descAr: 'أفضل الأسعار مع عروض وخصومات مستمرة على جميع المنتجات',
-      descEn: 'Best prices with ongoing offers and discounts on all products',
-    },
-    {
-      icon: '✅',
-      titleAr: 'جودة مضمونة',
-      titleEn: 'Quality Guaranteed',
-      descAr: 'جميع منتجاتنا أصلية ومطابقة للمواصفات القياسية',
-      descEn: 'All our products are genuine and meet quality standards',
-    },
-    {
-      icon: '📋',
-      titleAr: 'خدمة قائمة المواد',
-      titleEn: 'Material List Service',
-      descAr: 'ارفع قائمة المواد وفريقنا يجهز طلبك بالكامل',
-      descEn: 'Upload your material list and our team prepares your order',
-    },
-  ];
+  useEffect(() => {
+    const fetchFeatures = async () => {
+      try {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/content?type=feature`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.data && data.data.length > 0) {
+            setFeatures(data.data.map((item: any) => ({
+              icon: item.metadata?.icon || '✅',
+              titleAr: item.titleAr,
+              titleEn: item.titleEn,
+              descAr: item.contentAr,
+              descEn: item.contentEn,
+            })));
+          } else {
+            // Fallback if no dynamic features found
+            setFeatures([
+              {
+                icon: '🚚',
+                titleAr: 'توصيل سريع',
+                titleEn: 'Fast Delivery',
+                descAr: 'توصيل خلال 3 ساعات للطلبات العاجلة أو اختر موعد يناسبك',
+                descEn: '3-hour delivery for urgent orders or schedule at your convenience',
+              },
+              {
+                icon: '💰',
+                titleAr: 'أسعار تنافسية',
+                titleEn: 'Competitive Prices',
+                descAr: 'أفضل الأسعار مع عروض وخصومات مستمرة على جميع المنتجات',
+                descEn: 'Best prices with ongoing offers and discounts on all products',
+              },
+              {
+                icon: '✅',
+                titleAr: 'جودة مضمونة',
+                titleEn: 'Quality Guaranteed',
+                descAr: 'جميع منتجاتنا أصلية ومطابقة للمواصفات القياسية',
+                descEn: 'All our products are genuine and meet quality standards',
+              },
+              {
+                icon: '📋',
+                titleAr: 'خدمة قائمة المواد',
+                titleEn: 'Material List Service',
+                descAr: 'ارفع قائمة المواد وفريقنا يجهز طلبك بالكامل',
+                descEn: 'Upload your material list and our team prepares your order',
+              },
+            ]);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch features:', error);
+      }
+    };
+    fetchFeatures();
+  }, []);
+
+  if (features.length === 0) return null;
 
   return (
     <section className="section bg-gray-50">

@@ -191,19 +191,12 @@ export default function CheckoutPage() {
     setIsLoading(true);
 
     try {
-      // Build order items from cart
-      const orderItems = items.map((item) => ({
-        productId: item.productId,
-        quantity: item.quantity,
-      }));
-
       const orderData = {
         addressId: selectedAddressId,
         deliveryType,
         scheduledDate: deliveryType === 'scheduled' ? selectedDate : undefined,
         scheduledTime: deliveryType === 'scheduled' ? selectedTime : undefined,
         paymentMethod,
-        items: orderItems,
         notes: '',
       };
 

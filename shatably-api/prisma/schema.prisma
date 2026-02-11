@@ -593,6 +593,7 @@ enum ContentType {
   shipping
   returns
   contact
+  feature
 }
 
 model Content {

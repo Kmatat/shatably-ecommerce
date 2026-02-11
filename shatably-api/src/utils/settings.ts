@@ -62,14 +62,14 @@ export async function getGeneralSettings() {
   return getSetting('general', {
     storeNameAr: 'شطابلي',
     storeNameEn: 'Shatably',
-    phone: '',
-    email: '',
+    phone: '19041',
+    email: 'info@shatably.com',
     currency: 'EGP',
     defaultLanguage: 'ar',
-    addressAr: '',
-    addressEn: '',
-    workingHoursAr: '',
-    workingHoursEn: '',
+    addressAr: 'مبنى 4، المنطقة الصناعية، التجمع الخامس، القاهرة',
+    addressEn: 'Building 4, Industrial Zone, 5th Settlement, Cairo',
+    workingHoursAr: 'يومياً من 9 صباحاً حتى 10 مساءً',
+    workingHoursEn: 'Daily from 9 AM to 10 PM',
   });
 }
 

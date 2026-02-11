@@ -5,6 +5,7 @@ import i18n from '@/locales/i18n';
 import { useLanguageStore } from '@/lib/store';
 import AuthModal from '@/components/AuthModal';
 import CartSidebar from '@/components/CartSidebar';
+import CartSync from '@/components/CartSync';
 import '@/styles/globals.css';
 
 export default function App({ Component, pageProps }: AppProps) {
@@ -22,6 +23,7 @@ export default function App({ Component, pageProps }: AppProps) {
       <Component {...pageProps} />
       <AuthModal />
       <CartSidebar />
+      <CartSync />
     </I18nextProvider>
   );
 }

@@ -264,6 +264,75 @@ router.get('/deals', async (req, res, next) => {
 });
 
 /**
+ * GET /api/products/search/:query
+ * Search products
+ */
+router.get('/search/:query', async (req, res, next) => {
+  try {
+    const { query } = req.params;
+    const limit = Math.min(20, parseInt(req.query.limit as string) || 10);
+
+    const products = await prisma.product.findMany({
+      where: {
+        isActive: true,
+        OR: [
+          { nameAr: { contains: query, mode: 'insensitive' } },
+          { nameEn: { contains: query, mode: 'insensitive' } },
+          { sku: { contains: query, mode: 'insensitive' } },
+        ],
+      },
+      take: limit,
+      include: {
+        images: {
+          orderBy: { sortOrder: 'asc' },
+          take: 1,
+        },
+      },
+    });
+
+    res.json({
+      success: true,
+      data: products.map((product) => ({
+        id: product.id,
+        sku: product.sku,
+        nameAr: product.nameAr,
+        nameEn: product.nameEn,
+        price: Number(product.price),
+        image: product.images[0]?.url || null,
+      })),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * GET /api/products/brands
+ * Get all brands
+ */
+router.get('/brands', async (req, res, next) => {
+  try {
+    const brands = await prisma.brand.findMany({
+      where: { isActive: true },
+      orderBy: { nameEn: 'asc' },
+    });
+
+    res.json({
+      success: true,
+      data: brands.map((brand) => ({
+        id: brand.id,
+        nameAr: brand.nameAr,
+        nameEn: brand.nameEn,
+        slug: brand.slug,
+        logo: brand.logo,
+      })),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
  * GET /api/products/:id
  * Get single product details
  */

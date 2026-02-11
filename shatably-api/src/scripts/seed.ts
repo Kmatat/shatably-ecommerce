@@ -3,11 +3,28 @@ import { PrismaClient, ProductUnit, ContentType, AttributeType } from '@prisma/c
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('🌱 Seeding database with Egyptian building materials...');
+  console.log('🗑️ Cleaning up database...');
+  // Clean up order matters due to foreign keys
+  await prisma.orderItem.deleteMany();
+  await prisma.cartItem.deleteMany();
+  await prisma.productImage.deleteMany();
+  await prisma.productAttributeValue.deleteMany();
+  await prisma.productVariation.deleteMany();
+  await prisma.review.deleteMany();
+  await prisma.wishlist.deleteMany();
+  await prisma.product.deleteMany();
+  await prisma.attributeOption.deleteMany();
+  await prisma.attribute.deleteMany();
+  await prisma.category.deleteMany();
+  await prisma.brand.deleteMany();
+  await prisma.content.deleteMany();
+  await prisma.promoCode.deleteMany();
+  
+  console.log('🌱 Seeding database with Real Egyptian Market Data...');
 
   // Create super admin user
   const adminPhone = '01000000000';
-  const admin = await prisma.user.upsert({
+  await prisma.user.upsert({
     where: { phone: adminPhone },
     update: { role: 'super_admin', permissions: [] },
     create: {
@@ -19,90 +36,48 @@ async function main() {
       permissions: [],
     },
   });
-  console.log(`✅ Super Admin user created: ${admin.phone}`);
+  console.log(`✅ Super Admin user: ${adminPhone}`);
 
-  // Create categories
+  // 1. Create Categories (Egyptian Market Standard)
   const categoriesData = [
     {
-      nameAr: 'مواد البناء الهيكلية', nameEn: 'Structural Materials', slug: 'structural', icon: '🏗️',
+      nameAr: 'دهانات وديكور', nameEn: 'Paints & Decor', slug: 'paints', icon: '🎨',
+      image: 'https://images.unsplash.com/photo-1562259949-e8e7689d7828?w=800',
+      children: [
+        { nameAr: 'دهانات داخلية', nameEn: 'Interior Paints', slug: 'interior-paints', icon: '🏠' },
+        { nameAr: 'دهانات خارجية', nameEn: 'Exterior Paints', slug: 'exterior-paints', icon: '🏢' },
+        { nameAr: 'تأسيس ومعجون', nameEn: 'Primers & Putty', slug: 'primers', icon: '🖌️' },
+        { nameAr: 'ورنيش وأخشاب', nameEn: 'Wood & Varnish', slug: 'wood-paints', icon: '🪵' },
+        { nameAr: 'أدوات طلاء', nameEn: 'Painting Tools', slug: 'paint-tools', icon: '🔨' },
+      ],
+    },
+    {
+      nameAr: 'كيماويات بناء', nameEn: 'Construction Chemicals', slug: 'chemicals', icon: '🧪',
+      image: 'https://images.unsplash.com/photo-1581094794329-c8112a89af12?w=800',
+      children: [
+        { nameAr: 'إضافات خرسانة', nameEn: 'Concrete Admixtures', slug: 'admixtures', icon: '🏗️' },
+        { nameAr: 'عوازل', nameEn: 'Insulation & Waterproofing', slug: 'insulation', icon: '🛡️' },
+        { nameAr: 'لواصق سيراميك', nameEn: 'Tile Adhesives', slug: 'adhesives', icon: '🧱' },
+        { nameAr: 'مورتر وجراوت', nameEn: 'Mortars & Grouts', slug: 'mortars', icon: '🥣' },
+      ],
+    },
+    {
+      nameAr: 'جبس وأسقف', nameEn: 'Gypsum & Ceilings', slug: 'gypsum', icon: '🏗️',
       image: 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=800',
       children: [
-        { nameAr: 'أسمنت', nameEn: 'Cement', slug: 'cement', icon: '🧱' },
-        { nameAr: 'حديد التسليح', nameEn: 'Steel Rebar', slug: 'steel', icon: '🔩' },
-        { nameAr: 'طوب', nameEn: 'Bricks', slug: 'bricks', icon: '🧱' },
-        { nameAr: 'رمل', nameEn: 'Sand', slug: 'sand', icon: '🏖️' },
-        { nameAr: 'زلط', nameEn: 'Gravel', slug: 'gravel', icon: '🪨' },
-        { nameAr: 'خرسانة جاهزة', nameEn: 'Ready Mix Concrete', slug: 'concrete', icon: '🏗️' },
+        { nameAr: 'ألواح جبس بورد', nameEn: 'Gypsum Boards', slug: 'gypsum-boards', icon: '⬜' },
+        { nameAr: 'بلاطات أسقف', nameEn: 'Ceiling Tiles', slug: 'ceiling-tiles', icon: '🏁' },
+        { nameAr: 'قطاعات حديد', nameEn: 'Metal Profiles', slug: 'metal-profiles', icon: '📏' },
+        { nameAr: 'إكسسوارات جبس', nameEn: 'Gypsum Accessories', slug: 'gypsum-accessories', icon: '🔩' },
       ],
     },
     {
-      nameAr: 'تشطيبات وديكور', nameEn: 'Finishing & Decor', slug: 'finishing', icon: '🎨',
-      image: 'https://images.unsplash.com/photo-1615971677499-5467cbab01c0?w=800',
-      children: [
-        { nameAr: 'بلاط وسيراميك', nameEn: 'Tiles & Ceramics', slug: 'tiles', icon: '🔲' },
-        { nameAr: 'بورسلين', nameEn: 'Porcelain', slug: 'porcelain', icon: '✨' },
-        { nameAr: 'رخام وجرانيت', nameEn: 'Marble & Granite', slug: 'marble', icon: '💎' },
-        { nameAr: 'دهانات', nameEn: 'Paints', slug: 'paints', icon: '🎨' },
-        { nameAr: 'ورق حائط', nameEn: 'Wallpaper', slug: 'wallpaper', icon: '🖼️' },
-        { nameAr: 'جبس وأسقف', nameEn: 'Gypsum & Ceilings', slug: 'gypsum', icon: '🏠' },
-        { nameAr: 'باركيه وأرضيات', nameEn: 'Flooring', slug: 'flooring', icon: '🪵' },
-      ],
-    },
-    {
-      nameAr: 'سباكة ومياه', nameEn: 'Plumbing', slug: 'plumbing', icon: '🚿',
-      image: 'https://images.unsplash.com/photo-1585704032915-c3400ca199e7?w=800',
-      children: [
-        { nameAr: 'مواسير PPR', nameEn: 'PPR Pipes', slug: 'ppr-pipes', icon: '🔵' },
-        { nameAr: 'مواسير PVC', nameEn: 'PVC Pipes', slug: 'pvc-pipes', icon: '⚪' },
-        { nameAr: 'خلاطات ومحابس', nameEn: 'Faucets & Valves', slug: 'faucets', icon: '🚰' },
-        { nameAr: 'أطقم حمامات', nameEn: 'Bathroom Sets', slug: 'bathroom', icon: '🛁' },
-        { nameAr: 'سخانات مياه', nameEn: 'Water Heaters', slug: 'heaters', icon: '🔥' },
-        { nameAr: 'طلمبات مياه', nameEn: 'Water Pumps', slug: 'pumps', icon: '💧' },
-        { nameAr: 'خزانات مياه', nameEn: 'Water Tanks', slug: 'tanks', icon: '🛢️' },
-      ],
-    },
-    {
-      nameAr: 'كهرباء وإضاءة', nameEn: 'Electrical & Lighting', slug: 'electrical', icon: '💡',
-      image: 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=800',
-      children: [
-        { nameAr: 'أسلاك وكابلات', nameEn: 'Wires & Cables', slug: 'wiring', icon: '🔌' },
-        { nameAr: 'مفاتيح ومقابس', nameEn: 'Switches & Outlets', slug: 'switches', icon: '🔘' },
-        { nameAr: 'لوحات توزيع', nameEn: 'Distribution Boards', slug: 'panels', icon: '📟' },
-        { nameAr: 'إضاءة LED', nameEn: 'LED Lighting', slug: 'led', icon: '💡' },
-        { nameAr: 'نجف وثريات', nameEn: 'Chandeliers', slug: 'chandeliers', icon: '✨' },
-        { nameAr: 'إضاءة خارجية', nameEn: 'Outdoor Lighting', slug: 'outdoor-lighting', icon: '🏮' },
-      ],
-    },
-    {
-      nameAr: 'عدد وأدوات', nameEn: 'Tools & Hardware', slug: 'tools', icon: '🔧',
-      image: 'https://images.unsplash.com/photo-1581147036324-c17ac41f3a1b?w=800',
-      children: [
-        { nameAr: 'عدد يدوية', nameEn: 'Hand Tools', slug: 'hand-tools', icon: '🔨' },
-        { nameAr: 'عدد كهربائية', nameEn: 'Power Tools', slug: 'power-tools', icon: '⚡' },
-        { nameAr: 'مسامير وبراغي', nameEn: 'Fasteners', slug: 'fasteners', icon: '🔩' },
-        { nameAr: 'معدات سلامة', nameEn: 'Safety Equipment', slug: 'safety', icon: '🦺' },
-        { nameAr: 'سلالم وسقالات', nameEn: 'Ladders & Scaffolding', slug: 'ladders', icon: '🪜' },
-      ],
-    },
-    {
-      nameAr: 'أبواب ونوافذ', nameEn: 'Doors & Windows', slug: 'doors-windows', icon: '🚪',
-      image: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800',
-      children: [
-        { nameAr: 'أبواب خشب', nameEn: 'Wood Doors', slug: 'wood-doors', icon: '🚪' },
-        { nameAr: 'أبواب حديد', nameEn: 'Steel Doors', slug: 'steel-doors', icon: '🚪' },
-        { nameAr: 'ألوميتال', nameEn: 'Aluminum', slug: 'aluminum', icon: '🪟' },
-        { nameAr: 'زجاج', nameEn: 'Glass', slug: 'glass', icon: '🪟' },
-        { nameAr: 'كوالين وأكسسوارات', nameEn: 'Locks & Accessories', slug: 'locks', icon: '🔐' },
-      ],
-    },
-    {
-      nameAr: 'عوازل وتحضيرات', nameEn: 'Insulation & Preparation', slug: 'insulation', icon: '🛡️',
+      nameAr: 'زجاج ومرايات', nameEn: 'Glass & Mirrors', slug: 'glass', icon: '🪟',
       image: 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=800',
       children: [
-        { nameAr: 'عوازل مائية', nameEn: 'Waterproofing', slug: 'waterproofing', icon: '💧' },
-        { nameAr: 'عوازل حرارية', nameEn: 'Thermal Insulation', slug: 'thermal', icon: '🌡️' },
-        { nameAr: 'لاصق وجراوت', nameEn: 'Adhesives & Grout', slug: 'adhesives', icon: '🧴' },
-        { nameAr: 'سيلر ومواد تحضير', nameEn: 'Sealers & Primers', slug: 'sealers', icon: '🎨' },
+        { nameAr: 'زجاج شفاف', nameEn: 'Clear Glass', slug: 'clear-glass', icon: '🪟' },
+        { nameAr: 'مرايات', nameEn: 'Mirrors', slug: 'mirrors', icon: '🪞' },
+        { nameAr: 'سيكوريت', nameEn: 'Securit Glass', slug: 'securit', icon: '🛡️' },
       ],
     },
   ];
@@ -111,333 +86,297 @@ async function main() {
 
   for (const cat of categoriesData) {
     const { children, ...parentData } = cat;
-    const parent = await prisma.category.upsert({
-      where: { slug: parentData.slug },
-      update: { ...parentData, isActive: true },
-      create: { ...parentData, isActive: true },
+    const parent = await prisma.category.create({
+      data: { ...parentData, isActive: true },
     });
     categoryMap[parentData.slug] = parent.id;
-    console.log(`✅ Category: ${parent.nameEn}`);
 
     if (children) {
       for (let i = 0; i < children.length; i++) {
         const child = children[i];
-        const created = await prisma.category.upsert({
-          where: { slug: child.slug },
-          update: { ...child, parentId: parent.id, sortOrder: i },
-          create: { ...child, parentId: parent.id, isActive: true, sortOrder: i },
+        const created = await prisma.category.create({
+          data: { ...child, parentId: parent.id, isActive: true, sortOrder: i },
         });
         categoryMap[child.slug] = created.id;
       }
     }
   }
+  console.log('✅ Categories created');
 
-  // Create brands - Egyptian and International
+  // 2. Create Brands (Requested List)
   const brandsData = [
-    // Cement brands
-    { nameAr: 'أسمنت العربي', nameEn: 'Arabian Cement', slug: 'arabian-cement', logo: '' },
-    { nameAr: 'أسمنت السويس', nameEn: 'Suez Cement', slug: 'suez-cement', logo: '' },
-    { nameAr: 'أسمنت سيناء', nameEn: 'Sinai Cement', slug: 'sinai-cement', logo: '' },
-    { nameAr: 'أسمنت أسيوط', nameEn: 'Assiut Cement', slug: 'assiut-cement', logo: '' },
-    { nameAr: 'لافارج مصر', nameEn: 'Lafarge Egypt', slug: 'lafarge', logo: '' },
-    { nameAr: 'تيتان مصر', nameEn: 'Titan Egypt', slug: 'titan', logo: '' },
-    // Steel brands
-    { nameAr: 'حديد عز', nameEn: 'Ezz Steel', slug: 'ezz-steel', logo: '' },
-    { nameAr: 'حديد المصريين', nameEn: 'Al Masryeen Steel', slug: 'masryeen-steel', logo: '' },
-    { nameAr: 'حديد بشاي', nameEn: 'Beshay Steel', slug: 'beshay-steel', logo: '' },
-    { nameAr: 'حديد السويس', nameEn: 'Suez Steel', slug: 'suez-steel', logo: '' },
-    // Tiles & Ceramics brands
-    { nameAr: 'كليوباترا', nameEn: 'Cleopatra', slug: 'cleopatra', logo: '' },
-    { nameAr: 'الجوهرة', nameEn: 'El Gowhara', slug: 'gowhara', logo: '' },
-    { nameAr: 'سيراميكا رويال', nameEn: 'Royal Ceramica', slug: 'royal-ceramica', logo: '' },
-    { nameAr: 'سيراميكا الفا', nameEn: 'Alfa Ceramica', slug: 'alfa-ceramica', logo: '' },
-    { nameAr: 'سيراميكا فينوس', nameEn: 'Venus Ceramica', slug: 'venus', logo: '' },
-    { nameAr: 'ليسيكو', nameEn: 'Lecico', slug: 'lecico', logo: '' },
-    // Paints brands
-    { nameAr: 'جوتن', nameEn: 'Jotun', slug: 'jotun', logo: '' },
-    { nameAr: 'سكيب', nameEn: 'Scib Paints', slug: 'scib', logo: '' },
-    { nameAr: 'سايبس', nameEn: 'Sipes', slug: 'sipes', logo: '' },
-    { nameAr: 'بكسين', nameEn: 'Pachin', slug: 'pachin', logo: '' },
-    { nameAr: 'كيماويات البناء الحديث', nameEn: 'CMB', slug: 'cmb', logo: '' },
-    // Electrical brands
-    { nameAr: 'السويدي', nameEn: 'El Sewedy', slug: 'elsewedy', logo: '' },
-    { nameAr: 'فينوس', nameEn: 'Venus Electric', slug: 'venus-electric', logo: '' },
-    { nameAr: 'شنايدر', nameEn: 'Schneider Electric', slug: 'schneider', logo: '' },
-    { nameAr: 'لوجرون', nameEn: 'Legrand', slug: 'legrand', logo: '' },
-    { nameAr: 'فيليبس', nameEn: 'Philips', slug: 'philips', logo: '' },
-    { nameAr: 'أوسرام', nameEn: 'Osram', slug: 'osram', logo: '' },
-    // Plumbing brands
-    { nameAr: 'إيديال ستاندرد', nameEn: 'Ideal Standard', slug: 'ideal-standard', logo: '' },
-    { nameAr: 'ديورافيت', nameEn: 'Duravit', slug: 'duravit', logo: '' },
-    { nameAr: 'جروهي', nameEn: 'Grohe', slug: 'grohe', logo: '' },
-    { nameAr: 'هانز جروهي', nameEn: 'Hansgrohe', slug: 'hansgrohe', logo: '' },
-    { nameAr: 'أكوا ثيرم', nameEn: 'Aquatherm', slug: 'aquatherm', logo: '' },
-    // Tools brands
-    { nameAr: 'بوش', nameEn: 'Bosch', slug: 'bosch', logo: '' },
-    { nameAr: 'ماكيتا', nameEn: 'Makita', slug: 'makita', logo: '' },
-    { nameAr: 'ديوالت', nameEn: 'DeWalt', slug: 'dewalt', logo: '' },
-    { nameAr: 'ستانلي', nameEn: 'Stanley', slug: 'stanley', logo: '' },
-    { nameAr: 'توتال', nameEn: 'Total', slug: 'total', logo: '' },
-    // Adhesives & Waterproofing
-    { nameAr: 'سافيتو', nameEn: 'Saveto', slug: 'saveto', logo: '' },
-    { nameAr: 'سيكا', nameEn: 'Sika', slug: 'sika', logo: '' },
-    { nameAr: 'فوسروك', nameEn: 'Fosroc', slug: 'fosroc', logo: '' },
-    { nameAr: 'ماركو', nameEn: 'Mapei', slug: 'mapei', logo: '' },
+    { nameAr: 'سان جوبان', nameEn: 'Saint Gobain', slug: 'saint-gobain', logo: 'https://upload.wikimedia.org/wikipedia/en/thumb/2/23/Saint-Gobain_Logo.svg/1200px-Saint-Gobain_Logo.svg.png' },
+    { nameAr: 'جوتن', nameEn: 'Jotun', slug: 'jotun', logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/22/Jotun_logo.svg/2560px-Jotun_logo.svg.png' },
+    { nameAr: 'سكيب', nameEn: 'SCIB', slug: 'scib', logo: 'https://www.scibpaints.com/wp-content/uploads/2020/01/Scib-Logo.png' },
+    { nameAr: 'جي إل سي', nameEn: 'GLC', slug: 'glc', logo: 'https://glcpaints.com/wp-content/uploads/2020/12/logo.png' },
+    { nameAr: 'سي إم بي', nameEn: 'CMB', slug: 'cmb', logo: 'https://www.cmbegypt.com/images/logo.png' },
+    { nameAr: 'ويبر', nameEn: 'Weber', slug: 'weber', logo: 'https://www.egypt.weber/files/eg/styles/960x960_resize/public/pictures/2018-02/Weber_Logo_CMYK.png' }, // Saint Gobain brand
+    { nameAr: 'جيبروك', nameEn: 'Gyproc', slug: 'gyproc', logo: 'https://www.gyproc.ie/sites/gyproc.ie/files/gyproc_logo.png' }, // Saint Gobain brand
   ];
 
   const brandMap: Record<string, string> = {};
 
   for (const brand of brandsData) {
-    const created = await prisma.brand.upsert({
-      where: { slug: brand.slug },
-      update: brand,
-      create: { ...brand, isActive: true },
+    const created = await prisma.brand.create({
+      data: { ...brand, isActive: true },
     });
     brandMap[brand.slug] = created.id;
   }
-  console.log(`✅ ${brandsData.length} brands created`);
+  console.log('✅ Brands created (Saint Gobain, Jotun, SCIB, GLC, CMB)');
 
-  // Create comprehensive products
+  // 3. Create Products (Real Data)
   const productsData = [
-    // CEMENT PRODUCTS
-    { sku: 'CEM-ARAB-50', nameAr: 'أسمنت العربي بورتلاندي 50 كجم', nameEn: 'Arabian Portland Cement 50kg', descriptionAr: 'أسمنت بورتلاندي عادي عالي الجودة من شركة العربي للأسمنت.', descriptionEn: 'High quality ordinary Portland cement from Arabian Cement Company.', price: 95, unit: ProductUnit.bag, stock: 1000, categorySlug: 'cement', brandSlug: 'arabian-cement', isFeatured: true, minOrderQty: 10, weight: 50 },
-    { sku: 'CEM-SUEZ-50', nameAr: 'أسمنت السويس 50 كجم', nameEn: 'Suez Cement 50kg', descriptionAr: 'أسمنت السويس بورتلاندي عالي الجودة.', descriptionEn: 'High quality Suez Portland cement.', price: 92, unit: ProductUnit.bag, stock: 800, categorySlug: 'cement', brandSlug: 'suez-cement', minOrderQty: 10, weight: 50 },
-    { sku: 'CEM-SINAI-50', nameAr: 'أسمنت سيناء 50 كجم', nameEn: 'Sinai Cement 50kg', descriptionAr: 'أسمنت سيناء بورتلاندي عادي للبناء.', descriptionEn: 'Sinai ordinary Portland cement for construction.', price: 90, unit: ProductUnit.bag, stock: 600, categorySlug: 'cement', brandSlug: 'sinai-cement', minOrderQty: 10, weight: 50 },
-    { sku: 'CEM-LAFARGE-50', nameAr: 'أسمنت لافارج 50 كجم', nameEn: 'Lafarge Cement 50kg', descriptionAr: 'أسمنت لافارج عالي الجودة مطابق للمواصفات الأوروبية.', descriptionEn: 'High quality Lafarge cement meeting European standards.', price: 98, unit: ProductUnit.bag, stock: 500, categorySlug: 'cement', brandSlug: 'lafarge', isFeatured: true, minOrderQty: 10, weight: 50 },
-    { sku: 'CEM-TITAN-WR', nameAr: 'أسمنت تيتان مقاوم للمياه', nameEn: 'Titan Water Resistant Cement', descriptionAr: 'أسمنت مقاوم للمياه والرطوبة.', descriptionEn: 'Water resistant cement.', price: 115, unit: ProductUnit.bag, stock: 300, categorySlug: 'cement', brandSlug: 'titan', minOrderQty: 10, weight: 50 },
+    // --- JOTUN PRODUCTS ---
+    {
+      sku: 'JOT-FEN-RICH-18',
+      nameAr: 'جوتن فينوماستيك ماي هوم ريتش مط - 18 لتر',
+      nameEn: 'Jotun Fenomastic My Home Rich Matt - 18L',
+      descriptionAr: 'دهان مائي داخلي عالي الجودة يعطي مظهر مطفي غني وألوان دقيقة. قابل للغسيل ومقاوم للاصفرار.',
+      descriptionEn: 'High quality interior water-based paint giving a rich matt finish and accurate colors. Washable and anti-yellowing.',
+      price: 1850,
+      unit: ProductUnit.piece,
+      stock: 50,
+      categorySlug: 'interior-paints',
+      brandSlug: 'jotun',
+      isFeatured: true,
+      images: [
+        'https://images.unsplash.com/photo-1562259949-e8e7689d7828?auto=format&fit=crop&w=800&q=80', // Paint bucket/brush generic
+        'https://images.unsplash.com/photo-1589939705384-5185137a7f0f?auto=format&fit=crop&w=800&q=80', // Paint cans
+        'https://images.unsplash.com/photo-1595846519845-68e298c2edd8?auto=format&fit=crop&w=800&q=80'  // Painted room
+      ]
+    },
+    {
+      sku: 'JOT-SHIELD-SILK-18',
+      nameAr: 'جوتن جوتاشيلد سيلك - 18 لتر',
+      nameEn: 'Jotun Jotashield Silk - 18L',
+      descriptionAr: 'دهان خارجي أكريليك نقي عالي الجودة يوفر حماية ممتازة ضد العوامل الجوية.',
+      descriptionEn: 'Premium pure acrylic exterior paint offering excellent weather protection.',
+      price: 2100,
+      unit: ProductUnit.piece,
+      stock: 40,
+      categorySlug: 'exterior-paints',
+      brandSlug: 'jotun',
+      images: [
+        'https://images.unsplash.com/photo-1595429035839-c99c298ffdde?auto=format&fit=crop&w=800&q=80', // Exterior house paint
+        'https://images.unsplash.com/photo-1628131333796-03c03db29237?auto=format&fit=crop&w=800&q=80', // Paint bucket
+      ]
+    },
 
-    // STEEL PRODUCTS
-    { sku: 'STL-EZZ-10', nameAr: 'حديد تسليح عز 10 مم', nameEn: 'Ezz Steel Rebar 10mm', descriptionAr: 'حديد تسليح من إنتاج حديد عز، قطر 10 مم، طول 12 متر.', descriptionEn: 'Reinforcement steel from Ezz Steel, 10mm diameter.', price: 42000, unit: ProductUnit.ton, stock: 200, categorySlug: 'steel', brandSlug: 'ezz-steel', isFeatured: true, minOrderQty: 1, weight: 1000 },
-    { sku: 'STL-EZZ-12', nameAr: 'حديد تسليح عز 12 مم', nameEn: 'Ezz Steel Rebar 12mm', descriptionAr: 'حديد تسليح عز قطر 12 مم.', descriptionEn: 'Ezz Steel rebar 12mm diameter.', price: 42500, unit: ProductUnit.ton, stock: 180, categorySlug: 'steel', brandSlug: 'ezz-steel', isFeatured: true, minOrderQty: 1, weight: 1000 },
-    { sku: 'STL-EZZ-16', nameAr: 'حديد تسليح عز 16 مم', nameEn: 'Ezz Steel Rebar 16mm', descriptionAr: 'حديد تسليح عز قطر 16 مم.', descriptionEn: 'Ezz Steel rebar 16mm.', price: 43000, unit: ProductUnit.ton, stock: 150, categorySlug: 'steel', brandSlug: 'ezz-steel', minOrderQty: 1, weight: 1000 },
-    { sku: 'STL-MASRY-12', nameAr: 'حديد المصريين 12 مم', nameEn: 'Al Masryeen Steel 12mm', descriptionAr: 'حديد تسليح المصريين.', descriptionEn: 'Al Masryeen reinforcement steel.', price: 41500, unit: ProductUnit.ton, stock: 120, categorySlug: 'steel', brandSlug: 'masryeen-steel', minOrderQty: 1, weight: 1000 },
-    { sku: 'STL-BESHAY-12', nameAr: 'حديد بشاي 12 مم', nameEn: 'Beshay Steel 12mm', descriptionAr: 'حديد تسليح بشاي.', descriptionEn: 'Beshay reinforcement steel.', price: 41000, unit: ProductUnit.ton, stock: 100, categorySlug: 'steel', brandSlug: 'beshay-steel', minOrderQty: 1, weight: 1000 },
+    // --- SCIB PRODUCTS ---
+    {
+      sku: 'SCIB-ROYAL-SILK-9',
+      nameAr: 'سكيب رويال تون سيلك - 9 لتر',
+      nameEn: 'SCIB Royaltone Silk - 9L',
+      descriptionAr: 'دهان بلاستيك نصف لامع عالي الجودة، قابل للغسيل والاحتكاك.',
+      descriptionEn: 'High quality semi-gloss plastic paint, washable and scrub resistant.',
+      price: 850,
+      unit: ProductUnit.piece,
+      stock: 60,
+      categorySlug: 'interior-paints',
+      brandSlug: 'scib',
+      images: [
+        'https://images.unsplash.com/photo-1632759972306-6953c92332a6?auto=format&fit=crop&w=800&q=80', // Paint roller
+        'https://images.unsplash.com/photo-1572048572872-2394404cf1f3?auto=format&fit=crop&w=800&q=80'  // Colors
+      ]
+    },
+    {
+      sku: 'SCIB-SUPER-DI-15',
+      nameAr: 'سكيب سوبر دايتون - 15 لتر',
+      nameEn: 'SCIB Super Dieton - 15L',
+      descriptionAr: 'دهان بلاستيك مطفي اقتصادي للأسقف والحوائط الداخلية.',
+      descriptionEn: 'Economic matt plastic paint for ceilings and interior walls.',
+      price: 450,
+      unit: ProductUnit.piece,
+      stock: 100,
+      categorySlug: 'interior-paints',
+      brandSlug: 'scib',
+      images: [
+        'https://images.unsplash.com/photo-1533630764724-42b793393272?auto=format&fit=crop&w=800&q=80', // White paint
+        'https://images.unsplash.com/photo-1589939705384-5185137a7f0f?auto=format&fit=crop&w=800&q=80'
+      ]
+    },
 
-    // BRICKS
-    { sku: 'BRK-RED-1000', nameAr: 'طوب أحمر طفلي 1000 طوبة', nameEn: 'Red Clay Bricks (1000 pcs)', descriptionAr: 'طوب أحمر طفلي للبناء. مقاس 25×12×6.5 سم.', descriptionEn: 'Red clay bricks. Size 25x12x6.5 cm.', price: 1800, unit: ProductUnit.piece, stock: 100, categorySlug: 'bricks', isFeatured: true, minOrderQty: 1 },
-    { sku: 'BRK-CEMENT-1000', nameAr: 'طوب أسمنتي مفرغ 1000 طوبة', nameEn: 'Hollow Cement Blocks (1000 pcs)', descriptionAr: 'طوب أسمنتي مفرغ للبناء.', descriptionEn: 'Hollow cement blocks for construction.', price: 3500, unit: ProductUnit.piece, stock: 80, categorySlug: 'bricks', minOrderQty: 1 },
-    { sku: 'BRK-LIGHT-1000', nameAr: 'طوب خفيف عازل 1000 طوبة', nameEn: 'Lightweight Insulating Blocks', descriptionAr: 'طوب خفيف عازل للحرارة والصوت.', descriptionEn: 'Lightweight blocks with thermal insulation.', price: 5500, unit: ProductUnit.piece, stock: 50, categorySlug: 'bricks', minOrderQty: 1 },
+    // --- GLC PRODUCTS ---
+    {
+      sku: 'GLC-DEUS-3030',
+      nameAr: 'جي إل سي سوبر دايوس 3030 - 15 لتر',
+      nameEn: 'GLC Super Deus 3030 - 15L',
+      descriptionAr: 'دهان بلاستيك مطفي داخلي عالي الجودة، بياض ناصع وتغطية ممتازة.',
+      descriptionEn: 'High quality interior matt plastic paint, bright white and excellent coverage.',
+      price: 680,
+      unit: ProductUnit.piece,
+      stock: 150,
+      categorySlug: 'interior-paints',
+      brandSlug: 'glc',
+      isFeatured: true,
+      images: [
+        'https://images.unsplash.com/photo-1599691626233-3e3c6396cb71?auto=format&fit=crop&w=800&q=80', // Paint bucket
+        'https://images.unsplash.com/photo-1574950578143-858c6fc58922?auto=format&fit=crop&w=800&q=80'  // Painting process
+      ]
+    },
+    {
+      sku: 'GLC-STORM-SHIELD',
+      nameAr: 'جي إل سي ستورم شيلد - 10 لتر',
+      nameEn: 'GLC Storm Shield - 10L',
+      descriptionAr: 'دهان خارجي مقاوم للعوامل الجوية القاسية والأمطار.',
+      descriptionEn: 'Exterior paint resistant to harsh weather and rain.',
+      price: 950,
+      unit: ProductUnit.piece,
+      stock: 30,
+      categorySlug: 'exterior-paints',
+      brandSlug: 'glc',
+      images: [
+        'https://images.unsplash.com/photo-1516156008625-3a9d6067fab5?auto=format&fit=crop&w=800&q=80', // Exterior wall
+        'https://images.unsplash.com/photo-1595429035839-c99c298ffdde?auto=format&fit=crop&w=800&q=80'
+      ]
+    },
 
-    // SAND & GRAVEL
-    { sku: 'SND-FINE-M3', nameAr: 'رمل ناعم (متر مكعب)', nameEn: 'Fine Sand (Cubic Meter)', descriptionAr: 'رمل ناعم نظيف للبناء والمحارة.', descriptionEn: 'Clean fine sand for construction.', price: 350, unit: ProductUnit.cubicmeter, stock: 500, categorySlug: 'sand', minOrderQty: 1 },
-    { sku: 'SND-COARSE-M3', nameAr: 'رمل خشن (متر مكعب)', nameEn: 'Coarse Sand (Cubic Meter)', descriptionAr: 'رمل خشن للخرسانة.', descriptionEn: 'Coarse sand for concrete.', price: 320, unit: ProductUnit.cubicmeter, stock: 400, categorySlug: 'sand', minOrderQty: 1 },
-    { sku: 'GRV-M3', nameAr: 'زلط (متر مكعب)', nameEn: 'Gravel (Cubic Meter)', descriptionAr: 'زلط نظيف للخرسانة.', descriptionEn: 'Clean gravel for concrete.', price: 450, unit: ProductUnit.cubicmeter, stock: 300, categorySlug: 'gravel', minOrderQty: 1 },
+    // --- CMB PRODUCTS ---
+    {
+      sku: 'CMB-ADDIBOND-65-1KG',
+      nameAr: 'أديبوند 65 - 1 كجم',
+      nameEn: 'Addibond 65 - 1kg',
+      descriptionAr: 'مادة رابطة متعددة الأغراض للخرسانة والمونة، تزيد من قوة الالتصاق.',
+      descriptionEn: 'Multi-purpose bonding agent for concrete and mortar, increases adhesion strength.',
+      price: 85,
+      unit: ProductUnit.piece,
+      stock: 200,
+      categorySlug: 'admixtures',
+      brandSlug: 'cmb',
+      isFeatured: true,
+      images: [
+        'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=800&q=80', // Construction chemicals
+        'https://images.unsplash.com/photo-1581094794329-c8112a89af12?auto=format&fit=crop&w=800&q=80'
+      ]
+    },
+    {
+      sku: 'CMB-KEMAPOXY-131',
+      nameAr: 'كيما بوكسي 131 - 1 كجم',
+      nameEn: 'Kemapoxy 131 - 1kg',
+      descriptionAr: 'طلاء إيبوكسي للأرضيات والخزانات، مقاوم للكيماويات.',
+      descriptionEn: 'Epoxy coating for floors and tanks, chemical resistant.',
+      price: 320,
+      unit: ProductUnit.piece,
+      stock: 50,
+      categorySlug: 'chemicals',
+      brandSlug: 'cmb',
+      images: [
+        'https://images.unsplash.com/photo-1626622709280-992a0129712c?auto=format&fit=crop&w=800&q=80', // Epoxy floor
+        'https://images.unsplash.com/photo-1622372738946-62e02505f43d?auto=format&fit=crop&w=800&q=80'
+      ]
+    },
 
-    // TILES & CERAMICS
-    { sku: 'TIL-CLEO-60', nameAr: 'سيراميك كليوباترا 60×60', nameEn: 'Cleopatra Ceramic 60x60', descriptionAr: 'سيراميك أرضيات فاخر من كليوباترا. مقاس 60×60 سم.', descriptionEn: 'Premium floor ceramic from Cleopatra. Size 60x60 cm.', price: 185, originalPrice: 220, unit: ProductUnit.box, stock: 500, categorySlug: 'tiles', brandSlug: 'cleopatra', isFeatured: true, minOrderQty: 5 },
-    { sku: 'TIL-CLEO-30', nameAr: 'سيراميك كليوباترا حوائط 30×60', nameEn: 'Cleopatra Wall Ceramic 30x60', descriptionAr: 'سيراميك حوائط من كليوباترا.', descriptionEn: 'Wall ceramic from Cleopatra.', price: 145, unit: ProductUnit.box, stock: 400, categorySlug: 'tiles', brandSlug: 'cleopatra', minOrderQty: 5 },
-    { sku: 'TIL-ROYAL-60', nameAr: 'بورسلين رويال 60×60', nameEn: 'Royal Porcelain 60x60', descriptionAr: 'بورسلين فاخر من رويال سيراميكا.', descriptionEn: 'Premium porcelain from Royal Ceramica.', price: 250, unit: ProductUnit.box, stock: 300, categorySlug: 'porcelain', brandSlug: 'royal-ceramica', isFeatured: true, minOrderQty: 5 },
-    { sku: 'TIL-GOWHARA-80', nameAr: 'بورسلين الجوهرة 80×80', nameEn: 'El Gowhara Porcelain 80x80', descriptionAr: 'بورسلين فاخر كبير الحجم.', descriptionEn: 'Premium large format porcelain.', price: 320, unit: ProductUnit.box, stock: 200, categorySlug: 'porcelain', brandSlug: 'gowhara', minOrderQty: 5 },
-    { sku: 'TIL-ALFA-60', nameAr: 'سيراميك ألفا 60×60', nameEn: 'Alfa Ceramic 60x60', descriptionAr: 'سيراميك أرضيات من ألفا.', descriptionEn: 'Floor ceramic from Alfa.', price: 165, unit: ProductUnit.box, stock: 350, categorySlug: 'tiles', brandSlug: 'alfa-ceramica', minOrderQty: 5 },
-
-    // PAINTS
-    { sku: 'PNT-JOTUN-18', nameAr: 'دهان جوتن فينوماستيك 18 لتر', nameEn: 'Jotun Fenomastic 18L', descriptionAr: 'دهان داخلي فاخر من جوتن. قابل للغسيل.', descriptionEn: 'Premium interior paint from Jotun. Washable.', price: 1450, unit: ProductUnit.piece, stock: 200, categorySlug: 'paints', brandSlug: 'jotun', isFeatured: true, minOrderQty: 1 },
-    { sku: 'PNT-JOTUN-4', nameAr: 'دهان جوتن فينوماستيك 4 لتر', nameEn: 'Jotun Fenomastic 4L', descriptionAr: 'دهان داخلي فاخر من جوتن.', descriptionEn: 'Premium interior paint from Jotun.', price: 450, unit: ProductUnit.piece, stock: 300, categorySlug: 'paints', brandSlug: 'jotun', minOrderQty: 1 },
-    { sku: 'PNT-SCIB-18', nameAr: 'دهان سكيب سوبر 18 لتر', nameEn: 'Scib Super Paint 18L', descriptionAr: 'دهان بلاستيك اقتصادي.', descriptionEn: 'Economic plastic paint.', price: 850, unit: ProductUnit.piece, stock: 250, categorySlug: 'paints', brandSlug: 'scib', minOrderQty: 1 },
-    { sku: 'PNT-SIPES-18', nameAr: 'دهان سايبس بلاستيك 18 لتر', nameEn: 'Sipes Plastic Paint 18L', descriptionAr: 'دهان بلاستيك عالي الجودة.', descriptionEn: 'High quality plastic paint.', price: 750, unit: ProductUnit.piece, stock: 200, categorySlug: 'paints', brandSlug: 'sipes', minOrderQty: 1 },
-    { sku: 'PNT-PACHIN-18', nameAr: 'دهان باكسين اكريليك 18 لتر', nameEn: 'Pachin Acrylic Paint 18L', descriptionAr: 'دهان اكريليك خارجي.', descriptionEn: 'Exterior acrylic paint.', price: 950, unit: ProductUnit.piece, stock: 150, categorySlug: 'paints', brandSlug: 'pachin', minOrderQty: 1 },
-
-    // ELECTRICAL - WIRES
-    { sku: 'ELC-SEWEDY-1.5', nameAr: 'سلك السويدي 1.5 مم 100 متر', nameEn: 'El Sewedy Wire 1.5mm 100m', descriptionAr: 'سلك كهرباء نحاس نقي من السويدي.', descriptionEn: 'Pure copper electrical wire from El Sewedy.', price: 1800, unit: ProductUnit.piece, stock: 200, categorySlug: 'wiring', brandSlug: 'elsewedy', isFeatured: true, minOrderQty: 1 },
-    { sku: 'ELC-SEWEDY-2.5', nameAr: 'سلك السويدي 2.5 مم 100 متر', nameEn: 'El Sewedy Wire 2.5mm 100m', descriptionAr: 'سلك كهرباء نحاس 2.5 مم².', descriptionEn: 'Copper electrical wire 2.5mm².', price: 2800, unit: ProductUnit.piece, stock: 180, categorySlug: 'wiring', brandSlug: 'elsewedy', isFeatured: true, minOrderQty: 1 },
-    { sku: 'ELC-SEWEDY-4', nameAr: 'سلك السويدي 4 مم 100 متر', nameEn: 'El Sewedy Wire 4mm 100m', descriptionAr: 'سلك كهرباء للأحمال العالية.', descriptionEn: 'Copper wire for high loads.', price: 4200, unit: ProductUnit.piece, stock: 120, categorySlug: 'wiring', brandSlug: 'elsewedy', minOrderQty: 1 },
-    { sku: 'ELC-SEWEDY-6', nameAr: 'سلك السويدي 6 مم 100 متر', nameEn: 'El Sewedy Wire 6mm 100m', descriptionAr: 'سلك كهرباء للتكييفات.', descriptionEn: 'Copper wire for air conditioners.', price: 6500, unit: ProductUnit.piece, stock: 80, categorySlug: 'wiring', brandSlug: 'elsewedy', minOrderQty: 1 },
-
-    // SWITCHES & OUTLETS
-    { sku: 'ELC-SCHN-SW', nameAr: 'مفتاح شنايدر مفرد', nameEn: 'Schneider Single Switch', descriptionAr: 'مفتاح كهرباء مفرد من شنايدر.', descriptionEn: 'Single electrical switch from Schneider.', price: 85, unit: ProductUnit.piece, stock: 500, categorySlug: 'switches', brandSlug: 'schneider', isFeatured: true, minOrderQty: 1 },
-    { sku: 'ELC-SCHN-OUT', nameAr: 'بريزة شنايدر مزدوجة', nameEn: 'Schneider Double Outlet', descriptionAr: 'بريزة كهرباء مزدوجة من شنايدر.', descriptionEn: 'Double electrical outlet from Schneider.', price: 120, unit: ProductUnit.piece, stock: 400, categorySlug: 'switches', brandSlug: 'schneider', minOrderQty: 1 },
-    { sku: 'ELC-LEGR-SW', nameAr: 'مفتاح لوجرون مفرد', nameEn: 'Legrand Single Switch', descriptionAr: 'مفتاح كهرباء فاخر من لوجرون.', descriptionEn: 'Premium electrical switch from Legrand.', price: 95, unit: ProductUnit.piece, stock: 350, categorySlug: 'switches', brandSlug: 'legrand', minOrderQty: 1 },
-
-    // LIGHTING
-    { sku: 'ELC-PHIL-LED9', nameAr: 'لمبة فيليبس LED 9 وات', nameEn: 'Philips LED Bulb 9W', descriptionAr: 'لمبة LED موفرة للطاقة.', descriptionEn: 'Energy saving LED bulb.', price: 35, unit: ProductUnit.piece, stock: 1000, categorySlug: 'led', brandSlug: 'philips', isFeatured: true, minOrderQty: 1 },
-    { sku: 'ELC-PHIL-LED12', nameAr: 'لمبة فيليبس LED 12 وات', nameEn: 'Philips LED Bulb 12W', descriptionAr: 'لمبة LED عالية الإضاءة.', descriptionEn: 'High brightness LED bulb.', price: 45, unit: ProductUnit.piece, stock: 800, categorySlug: 'led', brandSlug: 'philips', minOrderQty: 1 },
-    { sku: 'ELC-OSRAM-LED9', nameAr: 'لمبة أوسرام LED 9 وات', nameEn: 'Osram LED Bulb 9W', descriptionAr: 'لمبة LED موفرة من أوسرام.', descriptionEn: 'Energy saving LED from Osram.', price: 32, unit: ProductUnit.piece, stock: 600, categorySlug: 'led', brandSlug: 'osram', minOrderQty: 1 },
-
-    // PLUMBING - PIPES
-    { sku: 'PLM-PPR-20', nameAr: 'ماسورة PPR 20 مم (4 متر)', nameEn: 'PPR Pipe 20mm (4m)', descriptionAr: 'ماسورة PPR للمياه الساخنة والباردة.', descriptionEn: 'PPR pipe for hot and cold water.', price: 35, unit: ProductUnit.piece, stock: 1000, categorySlug: 'ppr-pipes', brandSlug: 'aquatherm', isFeatured: true, minOrderQty: 10 },
-    { sku: 'PLM-PPR-25', nameAr: 'ماسورة PPR 25 مم (4 متر)', nameEn: 'PPR Pipe 25mm (4m)', descriptionAr: 'ماسورة PPR 25 مم.', descriptionEn: 'PPR pipe 25mm.', price: 45, unit: ProductUnit.piece, stock: 800, categorySlug: 'ppr-pipes', brandSlug: 'aquatherm', minOrderQty: 10 },
-    { sku: 'PLM-PPR-32', nameAr: 'ماسورة PPR 32 مم (4 متر)', nameEn: 'PPR Pipe 32mm (4m)', descriptionAr: 'ماسورة PPR 32 مم.', descriptionEn: 'PPR pipe 32mm.', price: 65, unit: ProductUnit.piece, stock: 600, categorySlug: 'ppr-pipes', brandSlug: 'aquatherm', minOrderQty: 10 },
-
-    // FAUCETS & BATHROOM
-    { sku: 'PLM-GROHE-MIX', nameAr: 'خلاط حوض جروهي', nameEn: 'Grohe Basin Mixer', descriptionAr: 'خلاط حوض فاخر من جروهي الألمانية.', descriptionEn: 'Premium basin mixer from Grohe Germany.', price: 2500, unit: ProductUnit.piece, stock: 50, categorySlug: 'faucets', brandSlug: 'grohe', isFeatured: true, minOrderQty: 1 },
-    { sku: 'PLM-IDEAL-SET', nameAr: 'طقم حمام إيديال ستاندرد', nameEn: 'Ideal Standard Bathroom Set', descriptionAr: 'طقم حمام كامل من إيديال ستاندرد.', descriptionEn: 'Complete bathroom set from Ideal Standard.', price: 8500, unit: ProductUnit.piece, stock: 30, categorySlug: 'bathroom', brandSlug: 'ideal-standard', isFeatured: true, minOrderQty: 1 },
-    { sku: 'PLM-DURAVIT-WC', nameAr: 'قاعدة ديورافيت معلقة', nameEn: 'Duravit Wall-hung WC', descriptionAr: 'قاعدة حمام معلقة فاخرة.', descriptionEn: 'Premium wall-hung WC.', price: 12000, unit: ProductUnit.piece, stock: 20, categorySlug: 'bathroom', brandSlug: 'duravit', minOrderQty: 1 },
-
-    // POWER TOOLS
-    { sku: 'TOL-BOSCH-DRL', nameAr: 'شنيور بوش احترافي 750 وات', nameEn: 'Bosch Pro Drill 750W', descriptionAr: 'شنيور كهربائي احترافي من بوش.', descriptionEn: 'Professional electric drill from Bosch.', price: 2500, originalPrice: 2900, unit: ProductUnit.piece, stock: 40, categorySlug: 'power-tools', brandSlug: 'bosch', isFeatured: true, minOrderQty: 1 },
-    { sku: 'TOL-MAKITA-HMR', nameAr: 'هيلتي ماكيتا 800 وات', nameEn: 'Makita Hammer Drill 800W', descriptionAr: 'دريل هيلتي من ماكيتا.', descriptionEn: 'Makita hammer drill.', price: 3200, unit: ProductUnit.piece, stock: 30, categorySlug: 'power-tools', brandSlug: 'makita', minOrderQty: 1 },
-    { sku: 'TOL-DEWALT-SAW', nameAr: 'صاروخ ديوالت 125 مم', nameEn: 'DeWalt Angle Grinder 125mm', descriptionAr: 'صاروخ قطع وجلخ من ديوالت.', descriptionEn: 'Angle grinder from DeWalt.', price: 1800, unit: ProductUnit.piece, stock: 50, categorySlug: 'power-tools', brandSlug: 'dewalt', minOrderQty: 1 },
-    { sku: 'TOL-TOTAL-DRL', nameAr: 'شنيور توتال 650 وات', nameEn: 'Total Drill 650W', descriptionAr: 'شنيور اقتصادي من توتال.', descriptionEn: 'Economic drill from Total.', price: 850, unit: ProductUnit.piece, stock: 80, categorySlug: 'power-tools', brandSlug: 'total', minOrderQty: 1 },
-
-    // HAND TOOLS
-    { sku: 'TOL-STAN-SET', nameAr: 'طقم عدد ستانلي 100 قطعة', nameEn: 'Stanley Tool Set 100 pcs', descriptionAr: 'طقم عدد يدوية شامل من ستانلي.', descriptionEn: 'Comprehensive hand tool set from Stanley.', price: 1500, unit: ProductUnit.piece, stock: 30, categorySlug: 'hand-tools', brandSlug: 'stanley', isFeatured: true, minOrderQty: 1 },
-    { sku: 'TOL-STAN-HAM', nameAr: 'شاكوش ستانلي 500 جرام', nameEn: 'Stanley Hammer 500g', descriptionAr: 'شاكوش مسلح من ستانلي.', descriptionEn: 'Reinforced hammer from Stanley.', price: 180, unit: ProductUnit.piece, stock: 100, categorySlug: 'hand-tools', brandSlug: 'stanley', minOrderQty: 1 },
-
-    // ADHESIVES & WATERPROOFING
-    { sku: 'ADH-SAVETO-25', nameAr: 'لاصق سيراميك سافيتو 25 كجم', nameEn: 'Saveto Ceramic Adhesive 25kg', descriptionAr: 'لاصق سيراميك عالي الجودة من سافيتو.', descriptionEn: 'High quality ceramic adhesive from Saveto.', price: 120, unit: ProductUnit.bag, stock: 400, categorySlug: 'adhesives', brandSlug: 'saveto', isFeatured: true, minOrderQty: 5 },
-    { sku: 'ADH-SIKA-WP', nameAr: 'عازل سيكا مائي 20 لتر', nameEn: 'Sika Waterproofing 20L', descriptionAr: 'عازل مائي من سيكا للأسطح والحمامات.', descriptionEn: 'Waterproofing from Sika.', price: 850, unit: ProductUnit.piece, stock: 100, categorySlug: 'waterproofing', brandSlug: 'sika', isFeatured: true, minOrderQty: 1 },
-    { sku: 'ADH-FOSROC-WP', nameAr: 'عازل فوسروك للخزانات', nameEn: 'Fosroc Tank Waterproofing', descriptionAr: 'عازل مائي للخزانات.', descriptionEn: 'Waterproofing for tanks.', price: 1200, unit: ProductUnit.piece, stock: 60, categorySlug: 'waterproofing', brandSlug: 'fosroc', minOrderQty: 1 },
-    { sku: 'ADH-MAPEI-GRT', nameAr: 'جراوت ماركو ملون 5 كجم', nameEn: 'Mapei Colored Grout 5kg', descriptionAr: 'جراوت ملون للسيراميك.', descriptionEn: 'Colored grout for ceramic.', price: 95, unit: ProductUnit.bag, stock: 300, categorySlug: 'adhesives', brandSlug: 'mapei', minOrderQty: 5 },
-
-    // GYPSUM & CEILINGS
-    { sku: 'GYP-BOARD-12', nameAr: 'ألواح جبس بورد 12 مم', nameEn: 'Gypsum Board 12mm', descriptionAr: 'ألواح جبس بورد للأسقف والحوائط.', descriptionEn: 'Gypsum boards for ceilings and walls.', price: 180, unit: ProductUnit.piece, stock: 500, categorySlug: 'gypsum', isFeatured: true, minOrderQty: 10 },
-    { sku: 'GYP-BOARD-MR', nameAr: 'جبس بورد مقاوم للرطوبة', nameEn: 'Moisture Resistant Gypsum Board', descriptionAr: 'ألواح جبس مقاومة للرطوبة.', descriptionEn: 'Moisture resistant gypsum boards.', price: 250, unit: ProductUnit.piece, stock: 300, categorySlug: 'gypsum', minOrderQty: 10 },
+    // --- SAINT GOBAIN PRODUCTS (Gyproc, Weber, Glass) ---
+    {
+      sku: 'GYP-REG-12.5',
+      nameAr: 'لوح جبس بورد جيبروك عادي 12.5 مم',
+      nameEn: 'Gyproc Regular Board 12.5mm',
+      descriptionAr: 'ألواح جبسية قياسية للأسقف المعلقة والحوائط الجافة. المقاس: 1200×3000 مم.',
+      descriptionEn: 'Standard gypsum boards for suspended ceilings and drywalls. Size: 1200x3000mm.',
+      price: 165,
+      unit: ProductUnit.piece,
+      stock: 300,
+      categorySlug: 'gypsum-boards',
+      brandSlug: 'gyproc',
+      minOrderQty: 10,
+      images: [
+        'https://images.unsplash.com/photo-1581094794329-c8112a89af12?auto=format&fit=crop&w=800&q=80', // Gypsum stack
+        'https://images.unsplash.com/photo-1594247563032-132ebff59b63?auto=format&fit=crop&w=800&q=80'  // Ceiling installation
+      ]
+    },
+    {
+      sku: 'GYP-MR-12.5',
+      nameAr: 'لوح جبس بورد جيبروك مقاوم للرطوبة (أخضر)',
+      nameEn: 'Gyproc Moisture Resistant Board (Green)',
+      descriptionAr: 'ألواح جبسية مقاومة للرطوبة للحمامات والمطابخ. المقاس: 1200×3000 مم.',
+      descriptionEn: 'Moisture resistant gypsum boards for bathrooms and kitchens. Size: 1200x3000mm.',
+      price: 210,
+      unit: ProductUnit.piece,
+      stock: 200,
+      categorySlug: 'gypsum-boards',
+      brandSlug: 'gyproc',
+      images: [
+        'https://images.unsplash.com/photo-1503387762-592deb58ef4e?auto=format&fit=crop&w=800&q=80', // Green board generic
+        'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=800&q=80'
+      ]
+    },
+    {
+      sku: 'WEB-KOL-20',
+      nameAr: 'لاصق سيراميك ويبر كول - 20 كجم',
+      nameEn: 'Weber.col Standard - 20kg',
+      descriptionAr: 'مادة لاصقة للسيراميك والبلاط، قوة التصاق عالية.',
+      descriptionEn: 'Cement-based tile adhesive with high bonding strength.',
+      price: 95,
+      unit: ProductUnit.bag,
+      stock: 400,
+      categorySlug: 'adhesives',
+      brandSlug: 'weber',
+      images: [
+        'https://images.unsplash.com/photo-1581094288338-2314dddb7ece?auto=format&fit=crop&w=800&q=80', // Bag of cement/adhesive
+        'https://images.unsplash.com/photo-1620619767323-b95a89183081?auto=format&fit=crop&w=800&q=80'  // Tiling
+      ]
+    },
+    {
+      sku: 'SG-MIRROR-6MM',
+      nameAr: 'مرآة سان جوبان 6 مم (متر مربع)',
+      nameEn: 'Saint Gobain Mirror 6mm (m²)',
+      descriptionAr: 'مرايا عالية النقاء والوضوح من سان جوبان.',
+      descriptionEn: 'High clarity mirrors from Saint Gobain.',
+      price: 850,
+      unit: ProductUnit.sqmeter,
+      stock: 50,
+      categorySlug: 'mirrors',
+      brandSlug: 'saint-gobain',
+      isFeatured: true,
+      images: [
+        'https://images.unsplash.com/photo-1618220179428-22790b461013?auto=format&fit=crop&w=800&q=80', // Mirror
+        'https://images.unsplash.com/photo-1595515106967-1434857ed8dd?auto=format&fit=crop&w=800&q=80'  // Mirror reflection
+      ]
+    }
   ];
 
-  // Product image URLs mapped by category slug for realistic images
-  const categoryImages: Record<string, string[]> = {
-    'cement': [
-      'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=600',
-      'https://images.unsplash.com/photo-1590937276221-4820e8e9c3d8?w=600',
-      'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=600',
-    ],
-    'steel': [
-      'https://images.unsplash.com/photo-1474540412665-1cdae210ae6b?w=600',
-      'https://images.unsplash.com/photo-1530982011887-3cc11cc85693?w=600',
-      'https://images.unsplash.com/photo-1567789884554-0b844b597180?w=600',
-    ],
-    'bricks': [
-      'https://images.unsplash.com/photo-1590073242678-70ee3fc28f8e?w=600',
-      'https://images.unsplash.com/photo-1585704032915-c3400ca199e7?w=600',
-      'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=600',
-    ],
-    'sand': [
-      'https://images.unsplash.com/photo-1509664158656-23a6cba4c91e?w=600',
-      'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=600',
-    ],
-    'gravel': [
-      'https://images.unsplash.com/photo-1509664158656-23a6cba4c91e?w=600',
-      'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=600',
-    ],
-    'tiles': [
-      'https://images.unsplash.com/photo-1615971677499-5467cbab01c0?w=600',
-      'https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?w=600',
-      'https://images.unsplash.com/photo-1616047006789-b7af5afb8c20?w=600',
-    ],
-    'porcelain': [
-      'https://images.unsplash.com/photo-1615971677499-5467cbab01c0?w=600',
-      'https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?w=600',
-      'https://images.unsplash.com/photo-1616047006789-b7af5afb8c20?w=600',
-    ],
-    'paints': [
-      'https://images.unsplash.com/photo-1589939705384-5185137a7f0f?w=600',
-      'https://images.unsplash.com/photo-1562259949-e8e7689d7828?w=600',
-      'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=600',
-    ],
-    'wiring': [
-      'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=600',
-      'https://images.unsplash.com/photo-1558346490-a72e53ae2d4f?w=600',
-      'https://images.unsplash.com/photo-1601084881623-cdf9a8ea242c?w=600',
-    ],
-    'switches': [
-      'https://images.unsplash.com/photo-1558346490-a72e53ae2d4f?w=600',
-      'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=600',
-    ],
-    'led': [
-      'https://images.unsplash.com/photo-1565814329452-e1432341ced4?w=600',
-      'https://images.unsplash.com/photo-1524484485831-a92ffc0de03f?w=600',
-      'https://images.unsplash.com/photo-1507494924047-60b8ee826ca9?w=600',
-    ],
-    'ppr-pipes': [
-      'https://images.unsplash.com/photo-1585704032915-c3400ca199e7?w=600',
-      'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=600',
-    ],
-    'faucets': [
-      'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?w=600',
-      'https://images.unsplash.com/photo-1552321554-5fefe8c9ef14?w=600',
-      'https://images.unsplash.com/photo-1564540586988-aa4e53c3d799?w=600',
-    ],
-    'bathroom': [
-      'https://images.unsplash.com/photo-1552321554-5fefe8c9ef14?w=600',
-      'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?w=600',
-      'https://images.unsplash.com/photo-1507089947368-19c1da9775ae?w=600',
-    ],
-    'power-tools': [
-      'https://images.unsplash.com/photo-1504148455328-c376907d081c?w=600',
-      'https://images.unsplash.com/photo-1581147036324-c17ac41f3a1b?w=600',
-      'https://images.unsplash.com/photo-1572981779307-38b8cabb2407?w=600',
-    ],
-    'hand-tools': [
-      'https://images.unsplash.com/photo-1581147036324-c17ac41f3a1b?w=600',
-      'https://images.unsplash.com/photo-1530124566582-a45a7e5a5e70?w=600',
-      'https://images.unsplash.com/photo-1504148455328-c376907d081c?w=600',
-    ],
-    'adhesives': [
-      'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=600',
-      'https://images.unsplash.com/photo-1585704032915-c3400ca199e7?w=600',
-    ],
-    'waterproofing': [
-      'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=600',
-      'https://images.unsplash.com/photo-1585704032915-c3400ca199e7?w=600',
-    ],
-    'gypsum': [
-      'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=600',
-      'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=600',
-    ],
-  };
-
-  let productIndex = 0;
   for (const product of productsData) {
     const categoryId = categoryMap[product.categorySlug];
     const brandId = product.brandSlug ? brandMap[product.brandSlug] : undefined;
 
     if (!categoryId) {
-      console.log(`⚠️ Category not found for product: ${product.sku}`);
+      console.log(`⚠️ Category not found: ${product.categorySlug}`);
       continue;
     }
 
-    const { categorySlug, brandSlug, ...productData } = product;
+    const { categorySlug, brandSlug, images, ...productData } = product;
 
-    const existingProduct = await prisma.product.findUnique({ where: { sku: product.sku } });
-
-    const created = existingProduct
-      ? await prisma.product.update({
-          where: { sku: product.sku },
-          data: { ...productData, categoryId, brandId, isActive: true },
-        })
-      : await prisma.product.create({
-          data: { ...productData, categoryId, brandId, isActive: true },
-        });
-
-    // Delete existing images for this product to re-seed fresh
-    await prisma.productImage.deleteMany({ where: { productId: created.id } });
-
-    // Get images for this product's category
-    const images = categoryImages[product.categorySlug] || [
-      'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=600',
-    ];
-
-    // Use a rotating index to vary which image is primary for products in the same category
-    const startIdx = productIndex % images.length;
-
-    // Add primary image
-    await prisma.productImage.create({
+    const created = await prisma.product.create({
       data: {
-        productId: created.id,
-        url: images[startIdx],
-        alt: product.nameEn,
-        isPrimary: true,
-        sortOrder: 0,
+        ...productData,
+        categoryId,
+        brandId,
+        isActive: true,
       },
     });
 
-    // Add gallery images (remaining images from the category set)
-    for (let i = 1; i < images.length; i++) {
-      const imgIdx = (startIdx + i) % images.length;
-      await prisma.productImage.create({
-        data: {
+    if (images && images.length > 0) {
+      await prisma.productImage.createMany({
+        data: images.map((url, idx) => ({
           productId: created.id,
-          url: images[imgIdx],
-          alt: `${product.nameEn} - ${i + 1}`,
-          isPrimary: false,
-          sortOrder: i,
-        },
+          url,
+          isPrimary: idx === 0,
+          sortOrder: idx,
+        })),
       });
+    } else {
+        // Fallback placeholder
+        await prisma.productImage.create({
+            data: {
+                productId: created.id,
+                url: `https://placehold.co/600x600/e2e8f0/64748b?text=${encodeURIComponent(product.nameEn.substring(0, 10))}`,
+                isPrimary: true,
+                sortOrder: 0
+            }
+        });
     }
-
-    productIndex++;
   }
-  console.log(`✅ ${productsData.length} products created with images`);
+  console.log('✅ Products created');
 
   // Create CMS Content
   const contentData = [
@@ -452,13 +391,21 @@ async function main() {
     { type: ContentType.about, key: 'about-main', titleAr: 'من نحن', titleEn: 'About Us', contentAr: 'شطابلي هي منصة إلكترونية رائدة في مجال مواد البناء في مصر.', contentEn: 'Shatably is a leading e-commerce platform for building materials in Egypt.', sortOrder: 1, isActive: true },
     { type: ContentType.terms, key: 'terms-main', titleAr: 'الشروط والأحكام', titleEn: 'Terms & Conditions', contentAr: 'باستخدامك لموقع شطابلي، فإنك توافق على هذه الشروط.', contentEn: 'By using Shatably website, you agree to these terms.', sortOrder: 1, isActive: true },
     { type: ContentType.privacy, key: 'privacy-main', titleAr: 'سياسة الخصوصية', titleEn: 'Privacy Policy', contentAr: 'نحن نحترم خصوصيتك ونلتزم بحماية بياناتك الشخصية.', contentEn: 'We respect your privacy and are committed to protecting your personal data.', sortOrder: 1, isActive: true },
+    
+    // Features (Why Shatably)
+    { type: ContentType.feature, key: 'feat-delivery', titleAr: 'توصيل سريع', titleEn: 'Fast Delivery', contentAr: 'توصيل خلال 3 ساعات للطلبات العاجلة أو اختر موعد يناسبك', contentEn: '3-hour delivery for urgent orders or schedule at your convenience', metadata: { icon: '🚚' }, sortOrder: 1, isActive: true },
+    { type: ContentType.feature, key: 'feat-price', titleAr: 'أسعار تنافسية', titleEn: 'Competitive Prices', contentAr: 'أفضل الأسعار مع عروض وخصومات مستمرة على جميع المنتجات', contentEn: 'Best prices with ongoing offers and discounts on all products', metadata: { icon: '💰' }, sortOrder: 2, isActive: true },
+    { type: ContentType.feature, key: 'feat-quality', titleAr: 'جودة مضمونة', titleEn: 'Quality Guaranteed', contentAr: 'جميع منتجاتنا أصلية ومطابقة للمواصفات القياسية', contentEn: 'All our products are genuine and meet quality standards', metadata: { icon: '✅' }, sortOrder: 3, isActive: true },
+    { type: ContentType.feature, key: 'feat-list', titleAr: 'خدمة قائمة المواد', titleEn: 'Material List Service', contentAr: 'ارفع قائمة المواد وفريقنا يجهز طلبك بالكامل', contentEn: 'Upload your material list and our team prepares your order', metadata: { icon: '📋' }, sortOrder: 4, isActive: true },
   ];
 
   for (const content of contentData) {
+    // Check if type is 'feature' (since it might not be in the imported ContentType yet if types aren't regenerated)
+    const type = content.type as ContentType;
     await prisma.content.upsert({
       where: { key: content.key },
-      update: content,
-      create: content,
+      update: { ...content, type },
+      create: { ...content, type },
     });
   }
   console.log(`✅ ${contentData.length} content items created`);
@@ -487,263 +434,7 @@ async function main() {
   });
   console.log('✅ Sample driver created');
 
-  // ============ PRODUCT ATTRIBUTES (Building Materials specific) ============
-  console.log('\n🏗️ Creating building material attributes...');
-
-  const attributesData = [
-    {
-      nameAr: 'المقاس', nameEn: 'Size', slug: 'size', type: 'select' as AttributeType, unit: null, isRequired: true, sortOrder: 1,
-      options: [
-        // Tiles sizes
-        { valueAr: '20×20 سم', valueEn: '20x20 cm', sortOrder: 1 },
-        { valueAr: '30×30 سم', valueEn: '30x30 cm', sortOrder: 2 },
-        { valueAr: '40×40 سم', valueEn: '40x40 cm', sortOrder: 3 },
-        { valueAr: '50×50 سم', valueEn: '50x50 cm', sortOrder: 4 },
-        { valueAr: '60×60 سم', valueEn: '60x60 cm', sortOrder: 5 },
-        { valueAr: '80×80 سم', valueEn: '80x80 cm', sortOrder: 6 },
-        { valueAr: '100×100 سم', valueEn: '100x100 cm', sortOrder: 7 },
-        { valueAr: '60×120 سم', valueEn: '60x120 cm', sortOrder: 8 },
-        { valueAr: '80×160 سم', valueEn: '80x160 cm', sortOrder: 9 },
-        // Bricks sizes
-        { valueAr: '25×12×6 سم', valueEn: '25x12x6 cm', sortOrder: 10 },
-        { valueAr: '25×12×10 سم', valueEn: '25x12x10 cm', sortOrder: 11 },
-        // Pipes sizes
-        { valueAr: '½ بوصة', valueEn: '½ inch', sortOrder: 12 },
-        { valueAr: '¾ بوصة', valueEn: '¾ inch', sortOrder: 13 },
-        { valueAr: '1 بوصة', valueEn: '1 inch', sortOrder: 14 },
-        { valueAr: '1½ بوصة', valueEn: '1½ inch', sortOrder: 15 },
-        { valueAr: '2 بوصة', valueEn: '2 inch', sortOrder: 16 },
-        { valueAr: '3 بوصة', valueEn: '3 inch', sortOrder: 17 },
-        { valueAr: '4 بوصة', valueEn: '4 inch', sortOrder: 18 },
-        { valueAr: '6 بوصة', valueEn: '6 inch', sortOrder: 19 },
-      ],
-    },
-    {
-      nameAr: 'اللون', nameEn: 'Color', slug: 'color', type: 'color' as AttributeType, unit: null, isRequired: false, sortOrder: 2,
-      options: [
-        { valueAr: 'أبيض', valueEn: 'White', colorCode: '#FFFFFF', sortOrder: 1 },
-        { valueAr: 'بيج', valueEn: 'Beige', colorCode: '#F5F5DC', sortOrder: 2 },
-        { valueAr: 'كريمي', valueEn: 'Cream', colorCode: '#FFFDD0', sortOrder: 3 },
-        { valueAr: 'رمادي فاتح', valueEn: 'Light Gray', colorCode: '#D3D3D3', sortOrder: 4 },
-        { valueAr: 'رمادي', valueEn: 'Gray', colorCode: '#808080', sortOrder: 5 },
-        { valueAr: 'رمادي غامق', valueEn: 'Dark Gray', colorCode: '#404040', sortOrder: 6 },
-        { valueAr: 'أسود', valueEn: 'Black', colorCode: '#000000', sortOrder: 7 },
-        { valueAr: 'بني', valueEn: 'Brown', colorCode: '#8B4513', sortOrder: 8 },
-        { valueAr: 'خشبي', valueEn: 'Wood', colorCode: '#DEB887', sortOrder: 9 },
-        { valueAr: 'رخامي', valueEn: 'Marble', colorCode: '#E8E8E8', sortOrder: 10 },
-        { valueAr: 'أزرق', valueEn: 'Blue', colorCode: '#0000FF', sortOrder: 11 },
-        { valueAr: 'أخضر', valueEn: 'Green', colorCode: '#008000', sortOrder: 12 },
-        { valueAr: 'أحمر', valueEn: 'Red', colorCode: '#FF0000', sortOrder: 13 },
-        { valueAr: 'ذهبي', valueEn: 'Gold', colorCode: '#FFD700', sortOrder: 14 },
-        { valueAr: 'فضي', valueEn: 'Silver', colorCode: '#C0C0C0', sortOrder: 15 },
-      ],
-    },
-    {
-      nameAr: 'التشطيب', nameEn: 'Finish', slug: 'finish', type: 'select' as AttributeType, unit: null, isRequired: false, sortOrder: 3,
-      options: [
-        { valueAr: 'لامع', valueEn: 'Glossy', sortOrder: 1 },
-        { valueAr: 'مطفي', valueEn: 'Matte', sortOrder: 2 },
-        { valueAr: 'نصف لامع', valueEn: 'Semi-Gloss', sortOrder: 3 },
-        { valueAr: 'ساتان', valueEn: 'Satin', sortOrder: 4 },
-        { valueAr: 'محبب', valueEn: 'Textured', sortOrder: 5 },
-        { valueAr: 'مصقول', valueEn: 'Polished', sortOrder: 6 },
-        { valueAr: 'غير مصقول', valueEn: 'Unpolished', sortOrder: 7 },
-        { valueAr: 'خشن', valueEn: 'Rough', sortOrder: 8 },
-        { valueAr: 'ناعم', valueEn: 'Smooth', sortOrder: 9 },
-        { valueAr: 'مقاوم للانزلاق', valueEn: 'Anti-slip', sortOrder: 10 },
-      ],
-    },
-    {
-      nameAr: 'السُمك', nameEn: 'Thickness', slug: 'thickness', type: 'select' as AttributeType, unit: 'مم', isRequired: false, sortOrder: 4,
-      options: [
-        { valueAr: '5 مم', valueEn: '5mm', sortOrder: 1 },
-        { valueAr: '6 مم', valueEn: '6mm', sortOrder: 2 },
-        { valueAr: '8 مم', valueEn: '8mm', sortOrder: 3 },
-        { valueAr: '9 مم', valueEn: '9mm', sortOrder: 4 },
-        { valueAr: '10 مم', valueEn: '10mm', sortOrder: 5 },
-        { valueAr: '12 مم', valueEn: '12mm', sortOrder: 6 },
-        { valueAr: '15 مم', valueEn: '15mm', sortOrder: 7 },
-        { valueAr: '18 مم', valueEn: '18mm', sortOrder: 8 },
-        { valueAr: '20 مم', valueEn: '20mm', sortOrder: 9 },
-        { valueAr: '25 مم', valueEn: '25mm', sortOrder: 10 },
-      ],
-    },
-    {
-      nameAr: 'درجة الجودة', nameEn: 'Grade', slug: 'grade', type: 'select' as AttributeType, unit: null, isRequired: false, sortOrder: 5,
-      options: [
-        { valueAr: 'الدرجة الأولى', valueEn: 'First Grade', sortOrder: 1 },
-        { valueAr: 'الدرجة الثانية', valueEn: 'Second Grade', sortOrder: 2 },
-        { valueAr: 'الدرجة الثالثة', valueEn: 'Third Grade', sortOrder: 3 },
-        { valueAr: 'تجاري', valueEn: 'Commercial', sortOrder: 4 },
-        { valueAr: 'ممتاز', valueEn: 'Premium', sortOrder: 5 },
-      ],
-    },
-    {
-      nameAr: 'مقاومة الماء', nameEn: 'Water Resistance', slug: 'water-resistance', type: 'select' as AttributeType, unit: null, isRequired: false, sortOrder: 6,
-      options: [
-        { valueAr: 'مقاوم للماء', valueEn: 'Waterproof', sortOrder: 1 },
-        { valueAr: 'مقاوم للرطوبة', valueEn: 'Moisture Resistant', sortOrder: 2 },
-        { valueAr: 'غير مقاوم', valueEn: 'Not Resistant', sortOrder: 3 },
-      ],
-    },
-    {
-      nameAr: 'الاستخدام', nameEn: 'Usage', slug: 'usage', type: 'multiselect' as AttributeType, unit: null, isRequired: false, sortOrder: 7,
-      options: [
-        { valueAr: 'داخلي', valueEn: 'Indoor', sortOrder: 1 },
-        { valueAr: 'خارجي', valueEn: 'Outdoor', sortOrder: 2 },
-        { valueAr: 'أرضيات', valueEn: 'Floor', sortOrder: 3 },
-        { valueAr: 'حوائط', valueEn: 'Wall', sortOrder: 4 },
-        { valueAr: 'حمامات', valueEn: 'Bathroom', sortOrder: 5 },
-        { valueAr: 'مطابخ', valueEn: 'Kitchen', sortOrder: 6 },
-        { valueAr: 'غرف معيشة', valueEn: 'Living Room', sortOrder: 7 },
-        { valueAr: 'غرف نوم', valueEn: 'Bedroom', sortOrder: 8 },
-        { valueAr: 'واجهات', valueEn: 'Facade', sortOrder: 9 },
-        { valueAr: 'حدائق', valueEn: 'Garden', sortOrder: 10 },
-      ],
-    },
-    {
-      nameAr: 'نوع المادة', nameEn: 'Material Type', slug: 'material-type', type: 'select' as AttributeType, unit: null, isRequired: false, sortOrder: 8,
-      options: [
-        // Pipes
-        { valueAr: 'PPR', valueEn: 'PPR', sortOrder: 1 },
-        { valueAr: 'PVC', valueEn: 'PVC', sortOrder: 2 },
-        { valueAr: 'UPVC', valueEn: 'UPVC', sortOrder: 3 },
-        { valueAr: 'نحاس', valueEn: 'Copper', sortOrder: 4 },
-        { valueAr: 'حديد مجلفن', valueEn: 'Galvanized Iron', sortOrder: 5 },
-        // Wires
-        { valueAr: 'نحاس صافي', valueEn: 'Pure Copper', sortOrder: 6 },
-        { valueAr: 'ألومنيوم', valueEn: 'Aluminum', sortOrder: 7 },
-        // Steel
-        { valueAr: 'حديد 40', valueEn: 'Steel 40', sortOrder: 8 },
-        { valueAr: 'حديد 52', valueEn: 'Steel 52', sortOrder: 9 },
-        { valueAr: 'حديد 60', valueEn: 'Steel 60', sortOrder: 10 },
-        // Tiles
-        { valueAr: 'سيراميك', valueEn: 'Ceramic', sortOrder: 11 },
-        { valueAr: 'بورسلين', valueEn: 'Porcelain', sortOrder: 12 },
-        { valueAr: 'رخام طبيعي', valueEn: 'Natural Marble', sortOrder: 13 },
-        { valueAr: 'جرانيت', valueEn: 'Granite', sortOrder: 14 },
-        { valueAr: 'خشب طبيعي', valueEn: 'Natural Wood', sortOrder: 15 },
-        { valueAr: 'HDF', valueEn: 'HDF', sortOrder: 16 },
-        { valueAr: 'باركيه', valueEn: 'Parquet', sortOrder: 17 },
-      ],
-    },
-    {
-      nameAr: 'قطر السلك', nameEn: 'Wire Diameter', slug: 'wire-diameter', type: 'select' as AttributeType, unit: 'مم²', isRequired: false, sortOrder: 9,
-      options: [
-        { valueAr: '1 مم²', valueEn: '1 mm²', sortOrder: 1 },
-        { valueAr: '1.5 مم²', valueEn: '1.5 mm²', sortOrder: 2 },
-        { valueAr: '2.5 مم²', valueEn: '2.5 mm²', sortOrder: 3 },
-        { valueAr: '4 مم²', valueEn: '4 mm²', sortOrder: 4 },
-        { valueAr: '6 مم²', valueEn: '6 mm²', sortOrder: 5 },
-        { valueAr: '10 مم²', valueEn: '10 mm²', sortOrder: 6 },
-        { valueAr: '16 مم²', valueEn: '16 mm²', sortOrder: 7 },
-        { valueAr: '25 مم²', valueEn: '25 mm²', sortOrder: 8 },
-      ],
-    },
-    {
-      nameAr: 'قطر الحديد', nameEn: 'Rebar Diameter', slug: 'rebar-diameter', type: 'select' as AttributeType, unit: 'مم', isRequired: false, sortOrder: 10,
-      options: [
-        { valueAr: '8 مم', valueEn: '8mm', sortOrder: 1 },
-        { valueAr: '10 مم', valueEn: '10mm', sortOrder: 2 },
-        { valueAr: '12 مم', valueEn: '12mm', sortOrder: 3 },
-        { valueAr: '14 مم', valueEn: '14mm', sortOrder: 4 },
-        { valueAr: '16 مم', valueEn: '16mm', sortOrder: 5 },
-        { valueAr: '18 مم', valueEn: '18mm', sortOrder: 6 },
-        { valueAr: '20 مم', valueEn: '20mm', sortOrder: 7 },
-        { valueAr: '22 مم', valueEn: '22mm', sortOrder: 8 },
-        { valueAr: '25 مم', valueEn: '25mm', sortOrder: 9 },
-        { valueAr: '28 مم', valueEn: '28mm', sortOrder: 10 },
-        { valueAr: '32 مم', valueEn: '32mm', sortOrder: 11 },
-      ],
-    },
-    {
-      nameAr: 'السعة', nameEn: 'Capacity', slug: 'capacity', type: 'select' as AttributeType, unit: null, isRequired: false, sortOrder: 11,
-      options: [
-        // Water tanks
-        { valueAr: '500 لتر', valueEn: '500 Liters', sortOrder: 1 },
-        { valueAr: '1000 لتر', valueEn: '1000 Liters', sortOrder: 2 },
-        { valueAr: '1500 لتر', valueEn: '1500 Liters', sortOrder: 3 },
-        { valueAr: '2000 لتر', valueEn: '2000 Liters', sortOrder: 4 },
-        { valueAr: '3000 لتر', valueEn: '3000 Liters', sortOrder: 5 },
-        { valueAr: '5000 لتر', valueEn: '5000 Liters', sortOrder: 6 },
-        // Water heaters
-        { valueAr: '30 لتر', valueEn: '30 Liters', sortOrder: 7 },
-        { valueAr: '40 لتر', valueEn: '40 Liters', sortOrder: 8 },
-        { valueAr: '50 لتر', valueEn: '50 Liters', sortOrder: 9 },
-        { valueAr: '80 لتر', valueEn: '80 Liters', sortOrder: 10 },
-        { valueAr: '100 لتر', valueEn: '100 Liters', sortOrder: 11 },
-        // Paint
-        { valueAr: '1 لتر', valueEn: '1 Liter', sortOrder: 12 },
-        { valueAr: '4 لتر', valueEn: '4 Liters', sortOrder: 13 },
-        { valueAr: '9 لتر', valueEn: '9 Liters', sortOrder: 14 },
-        { valueAr: '18 لتر', valueEn: '18 Liters', sortOrder: 15 },
-      ],
-    },
-    {
-      nameAr: 'الطول', nameEn: 'Length', slug: 'length', type: 'select' as AttributeType, unit: 'متر', isRequired: false, sortOrder: 12,
-      options: [
-        { valueAr: '1 متر', valueEn: '1 Meter', sortOrder: 1 },
-        { valueAr: '2 متر', valueEn: '2 Meters', sortOrder: 2 },
-        { valueAr: '3 متر', valueEn: '3 Meters', sortOrder: 3 },
-        { valueAr: '4 متر', valueEn: '4 Meters', sortOrder: 4 },
-        { valueAr: '6 متر', valueEn: '6 Meters', sortOrder: 5 },
-        { valueAr: '12 متر', valueEn: '12 Meters', sortOrder: 6 },
-        { valueAr: '50 متر', valueEn: '50 Meters', sortOrder: 7 },
-        { valueAr: '100 متر', valueEn: '100 Meters', sortOrder: 8 },
-      ],
-    },
-  ];
-
-  for (const attr of attributesData) {
-    const { options, ...attrData } = attr;
-    const attribute = await prisma.attribute.upsert({
-      where: { slug: attrData.slug },
-      update: attrData,
-      create: attrData,
-    });
-
-    // Create options for this attribute
-    for (const opt of options) {
-      await prisma.attributeOption.upsert({
-        where: { id: `${attribute.id}-${opt.sortOrder}` },
-        update: { ...opt, attributeId: attribute.id },
-        create: { ...opt, attributeId: attribute.id },
-      });
-    }
-  }
-  console.log(`✅ ${attributesData.length} product attributes created with options`);
-
-  // Seed general settings with contact information
-  const settingsData = [
-    {
-      key: 'general',
-      value: {
-        storeNameAr: 'شطابلي',
-        storeNameEn: 'Shatably',
-        phone: '16XXX',
-        email: 'support@shatably.com',
-        currency: 'EGP',
-        defaultLanguage: 'ar',
-        addressAr: 'المعادي، القاهرة، مصر',
-        addressEn: 'Maadi, Cairo, Egypt',
-        workingHoursAr: 'يومياً من 9 صباحاً حتى 10 مساءً',
-        workingHoursEn: 'Daily from 9 AM to 10 PM',
-      },
-    },
-  ];
-
-  for (const setting of settingsData) {
-    await prisma.setting.upsert({
-      where: { key: setting.key },
-      update: { value: setting.value },
-      create: { key: setting.key, value: setting.value },
-    });
-  }
-  console.log('✅ Store settings seeded');
-
-  console.log('\n🎉 Database seeding completed successfully!');
-  console.log('📱 Admin Login: 01000000000');
-  console.log('🎟️ Promo Codes: WELCOME10, BULK20, FREESHIP');
+  console.log('\n🎉 Real Data Seeding Completed!');
 }
 
 main()
