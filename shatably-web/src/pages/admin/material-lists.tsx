@@ -141,6 +141,15 @@ export default function AdminMaterialListsPage() {
     return fileTypeIcons[ext] || '📄';
   };
 
+  // Resolve file URL — handle relative paths or localhost URLs
+  const getFileUrl = (url: string) => {
+    if (!url) return '';
+    if (url.startsWith('http') && !url.includes('localhost')) return url;
+    const path = url.startsWith('/') ? url : `/${url}`;
+    const baseUrl = API_URL.replace(/\/api\/?$/, '');
+    return `${baseUrl}${path}`;
+  };
+
   const fetchMaterialLists = async (currentToken: string | null, currentStatus: string, currentSearch: string) => {
     if (!currentToken) {
       setLoading(false);
@@ -334,7 +343,7 @@ export default function AdminMaterialListsPage() {
                           <td className="px-4 py-4">
                             <div className="flex items-center gap-2">
                               <a
-                                href={list.fileUrl}
+                                href={getFileUrl(list.fileUrl)}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="p-2 hover:bg-gray-100 rounded-lg"
