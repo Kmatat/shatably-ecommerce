@@ -194,8 +194,8 @@ export default function AdminMaterialListsPage() {
   const filteredLists = materialLists.filter((list) => {
     const matchesSearch =
       list.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (list.user.name?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false) ||
-      list.user.phone.includes(searchQuery);
+      (list.user?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false) ||
+      (list.user?.phone?.includes(searchQuery) ?? false);
     return matchesSearch;
   });
 
@@ -292,10 +292,10 @@ export default function AdminMaterialListsPage() {
                           <td className="px-4 py-4">
                             <div>
                               <p className="font-medium text-gray-900">
-                                {list.user.name || 'N/A'}
+                                {list.user?.name || 'N/A'}
                               </p>
                               <p className="text-sm text-gray-500" dir="ltr">
-                                {list.user.phone}
+                                {list.user?.phone || '-'}
                               </p>
                             </div>
                           </td>

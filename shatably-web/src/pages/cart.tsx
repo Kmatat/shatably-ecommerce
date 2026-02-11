@@ -144,7 +144,7 @@ export default function CartPage() {
                           <Link href={`/product/${item.productId}`}>
                             <div className="relative w-24 h-24 flex-shrink-0">
                               <Image
-                                src={item.product.images[0]}
+                                src={item.product.images?.[0] || '/placeholder.png'}
                                 alt={name}
                                 fill
                                 className="object-cover rounded-lg"
