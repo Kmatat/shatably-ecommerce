@@ -32,6 +32,8 @@ export default function CartSync() {
                 sku: item.product.sku,
                 nameAr: item.product.nameAr,
                 nameEn: item.product.nameEn,
+                descriptionAr: item.product.descriptionAr || '',
+                descriptionEn: item.product.descriptionEn || '',
                 price: item.product.price,
                 originalPrice: item.product.originalPrice,
                 images: item.product.image ? [item.product.image] : [],
