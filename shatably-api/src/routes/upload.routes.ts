@@ -7,43 +7,64 @@ import { AppError } from '../middleware/errorHandler';
 
 const router = Router();
 
-// Configure multer for local storage (switch to Cloudinary in production)
+// Configure storage
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     cb(null, 'uploads/');
   },
   filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
+    // Sanitize extension
+    const ext = path.extname(file.originalname).toLowerCase();
     cb(null, `${uuidv4()}${ext}`);
   },
 });
 
-const fileFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+// Image filter
+const imageFileFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+  const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+
+  if (allowedTypes.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(new Error('Invalid file type. Only JPEG, PNG, and WebP are allowed.'));
+  }
+};
+
+// Document filter (for material lists)
+const documentFileFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
   const allowedTypes = [
     'image/jpeg', 'image/png', 'image/webp', 'image/gif',
     'application/pdf',
     'application/msword',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // docx
     'application/vnd.ms-excel',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // xlsx
   ];
 
   if (allowedTypes.includes(file.mimetype)) {
     cb(null, true);
   } else {
-    cb(new Error('Invalid file type'));
+    cb(new Error('Invalid file type.'));
   }
 };
 
-const upload = multer({
+const imageUpload = multer({
   storage,
-  fileFilter,
+  fileFilter: imageFileFilter,
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB
+    fileSize: 5 * 1024 * 1024, // 5MB for images
   },
 });
 
-// Helper to build full URL for uploaded files
+const documentUpload = multer({
+  storage,
+  fileFilter: documentFileFilter,
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB for documents
+  },
+});
+
+// Helper to build full URL
 function getUploadUrl(req: any, filename: string): string {
   const protocol = req.headers['x-forwarded-proto'] || req.protocol;
   const host = req.headers['x-forwarded-host'] || req.get('host');
@@ -56,7 +77,7 @@ router.use(authenticate);
  * POST /api/upload/image
  * Upload single image
  */
-router.post('/image', upload.single('file'), async (req, res, next) => {
+router.post('/image', imageUpload.single('file'), async (req, res, next) => {
   try {
     if (!req.file) {
       throw new AppError('No file uploaded', 400);
@@ -81,19 +102,21 @@ router.post('/image', upload.single('file'), async (req, res, next) => {
 
 /**
  * POST /api/upload/material-list
- * Upload material list file
+ * Upload material list file (docs allowed)
  */
-router.post('/material-list', upload.single('file'), async (req, res, next) => {
+router.post('/material-list', documentUpload.single('file'), async (req, res, next) => {
   try {
     if (!req.file) {
       throw new AppError('No file uploaded', 400);
     }
 
     const fileUrl = getUploadUrl(req, req.file.filename);
-    const fileType = req.file.mimetype.includes('image') ? 'image' :
-                     req.file.mimetype.includes('pdf') ? 'pdf' :
-                     req.file.mimetype.includes('word') ? 'docx' :
-                     req.file.mimetype.includes('excel') || req.file.mimetype.includes('spreadsheet') ? 'xlsx' : 'other';
+    let fileType = 'other';
+
+    if (req.file.mimetype.startsWith('image/')) fileType = 'image';
+    else if (req.file.mimetype === 'application/pdf') fileType = 'pdf';
+    else if (req.file.mimetype.includes('word')) fileType = 'docx';
+    else if (req.file.mimetype.includes('spreadsheet') || req.file.mimetype.includes('excel')) fileType = 'xlsx';
 
     res.json({
       success: true,
@@ -112,10 +135,12 @@ router.post('/material-list', upload.single('file'), async (req, res, next) => {
 
 /**
  * POST /api/upload/images
- * Upload multiple images (up to 20)
+ * Upload multiple images
  */
-router.post('/images', upload.array('files', 20), async (req, res, next) => {
+router.post('/images', imageUpload.array('files', 10), async (req, res, next) => {
   try {
+    // Multer places files in req.files (array) or req.file (single)
+    // Cast to standard array
     const files = req.files as Express.Multer.File[];
 
     if (!files || files.length === 0) {

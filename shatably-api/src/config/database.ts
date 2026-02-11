@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import logger from '../utils/logger';
 
 // Prevent multiple instances of Prisma Client in development
 declare global {
@@ -27,10 +28,10 @@ if (process.env.NODE_ENV !== 'production') {
 // Test database connection on startup
 prisma.$connect()
   .then(() => {
-    console.log('✅ Database connected successfully');
+    logger.info('✅ Database connected successfully');
   })
   .catch((error: Error) => {
-    console.error('❌ Database connection failed:', error.message);
+    logger.error(`❌ Database connection failed: ${error.message}`);
   });
 
 export default prisma;

@@ -3,6 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
+import logger from './utils/logger';
 
 // Load environment variables
 dotenv.config();
@@ -83,8 +84,10 @@ app.get('/health', (req, res) => {
   });
 });
 
+import { authenticate, requireAdmin } from './middleware/auth';
+
 // Database connection diagnostic
-app.get('/api/db-check', async (req, res) => {
+app.get('/api/db-check', authenticate, requireAdmin, async (req, res) => {
   const prisma = (await import('./config/database')).default;
   try {
     // Try a simple query
@@ -126,11 +129,12 @@ app.use(notFound);
 app.use(errorHandler);
 
 // Start server
+// Start server
 app.listen(PORT, () => {
-  console.log(`🚀 Shatably API running on port ${PORT}`);
-  console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`🔗 Health check: http://localhost:${PORT}/health`);
-  console.log(`📄 Content API: http://localhost:${PORT}/api/content`);
+  logger.info(`🚀 Shatably API running on port ${PORT}`);
+  logger.info(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
+  logger.info(`🔗 Health check: http://localhost:${PORT}/health`);
+  logger.info(`📄 Content API: http://localhost:${PORT}/api/content`);
 });
 
 export default app;
