@@ -169,7 +169,21 @@ export default function MaterialListDetailPage() {
         });
         if (!response.ok) throw new Error('Failed to fetch material list');
         const data = await response.json();
-        setMaterialList(data.data);
+        const ml = data.data;
+        setMaterialList(ml);
+
+        // Auto-update status to "processing" when admin opens a pending list
+        if (ml && ml.status === 'pending') {
+          await fetch(`${API_URL}/admin/material-lists/${id}`, {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ status: 'processing' }),
+          });
+          setMaterialList({ ...ml, status: 'processing' });
+        }
       } catch (err) {
         setError(t.loadError);
       } finally {
@@ -204,9 +218,9 @@ export default function MaterialListDetailPage() {
               nameAr: p.nameAr,
               nameEn: p.nameEn,
               price: p.price,
-              stock: p.stock,
-              unit: p.unit,
-              image: p.images?.[0]?.url || p.image || null,
+              stock: p.stock ?? 0,
+              unit: p.unit ?? 'piece',
+              image: Array.isArray(p.images) ? (p.images[0] ?? null) : (p.image ?? null),
             }))
           );
         }
@@ -291,6 +305,16 @@ export default function MaterialListDetailPage() {
       (sum, item) => sum + item.product.price * item.quantity,
       0
     );
+  };
+
+  // Resolve file URL — handle relative paths or localhost URLs
+  const getFileUrl = (url: string) => {
+    if (!url) return '';
+    if (url.startsWith('http') && !url.includes('localhost')) return url;
+    // Strip leading slash and prepend API URL
+    const path = url.startsWith('/') ? url : `/${url}`;
+    const baseUrl = API_URL.replace(/\/api\/?$/, '');
+    return `${baseUrl}${path}`;
   };
 
   const statusColors: Record<string, string> = {
@@ -406,9 +430,17 @@ export default function MaterialListDetailPage() {
                 {materialList.fileType.startsWith('image') ? (
                   <div className="relative aspect-video bg-gray-100 rounded-lg overflow-hidden mb-4">
                     <img
-                      src={materialList.fileUrl}
+                      src={getFileUrl(materialList.fileUrl)}
                       alt={materialList.fileName}
                       className="w-full h-full object-contain"
+                    />
+                  </div>
+                ) : materialList.fileType === 'pdf' ? (
+                  <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden mb-4">
+                    <iframe
+                      src={getFileUrl(materialList.fileUrl)}
+                      className="w-full h-full"
+                      title={materialList.fileName}
                     />
                   </div>
                 ) : (
@@ -419,7 +451,7 @@ export default function MaterialListDetailPage() {
 
                 <div className="flex gap-2">
                   <a
-                    href={materialList.fileUrl}
+                    href={getFileUrl(materialList.fileUrl)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex-1 btn-outline flex items-center justify-center gap-2"
@@ -428,7 +460,7 @@ export default function MaterialListDetailPage() {
                     {t.viewFile}
                   </a>
                   <a
-                    href={materialList.fileUrl}
+                    href={getFileUrl(materialList.fileUrl)}
                     download
                     className="flex-1 btn-outline flex items-center justify-center gap-2"
                   >

@@ -701,13 +701,36 @@ router.get('/material-lists', async (req, res, next) => {
     if (status && status !== 'all') where.status = status;
 
     const lists = await prisma.materialList.findMany({ where, orderBy: { createdAt: 'desc' },
-      include: { user: { select: { name: true, phone: true } } } });
+      include: { user: { select: { id: true, name: true, phone: true } } } });
 
     res.json({ success: true, data: lists.map((l) => ({
-      id: l.id, customer: { name: l.user.name, phone: l.user.phone }, fileName: l.fileName,
-      fileUrl: l.fileUrl, fileType: l.fileType, notes: l.notes, status: l.status,
+      id: l.id, userId: l.userId, user: { id: l.user.id, name: l.user.name, phone: l.user.phone },
+      fileName: l.fileName, fileUrl: l.fileUrl, fileType: l.fileType, notes: l.notes, status: l.status,
       assignedTo: l.assignedTo, createdAt: l.createdAt, processedAt: l.processedAt,
     })) });
+  } catch (error) { next(error); }
+});
+
+router.get('/material-lists/:id', async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const list = await prisma.materialList.findUnique({
+      where: { id },
+      include: { user: { select: { id: true, name: true, phone: true, email: true } } },
+    });
+
+    if (!list) throw new AppError('Material list not found', 404);
+
+    res.json({
+      success: true,
+      data: {
+        id: list.id, userId: list.userId,
+        user: { id: list.user.id, name: list.user.name, phone: list.user.phone, email: list.user.email },
+        fileName: list.fileName, fileUrl: list.fileUrl, fileType: list.fileType,
+        notes: list.notes, status: list.status, assignedTo: list.assignedTo,
+        cartSnapshot: list.cartSnapshot, createdAt: list.createdAt, processedAt: list.processedAt,
+      },
+    });
   } catch (error) { next(error); }
 });
 
