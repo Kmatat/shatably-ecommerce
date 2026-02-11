@@ -43,6 +43,13 @@ const upload = multer({
   },
 });
 
+// Helper to build full URL for uploaded files
+function getUploadUrl(req: any, filename: string): string {
+  const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+  const host = req.headers['x-forwarded-host'] || req.get('host');
+  return `${protocol}://${host}/uploads/${filename}`;
+}
+
 router.use(authenticate);
 
 /**
@@ -55,9 +62,7 @@ router.post('/image', upload.single('file'), async (req, res, next) => {
       throw new AppError('No file uploaded', 400);
     }
 
-    // In production, upload to Cloudinary and return URL
-    // For now, return local path
-    const fileUrl = `/uploads/${req.file.filename}`;
+    const fileUrl = getUploadUrl(req, req.file.filename);
 
     res.json({
       success: true,
@@ -84,7 +89,7 @@ router.post('/material-list', upload.single('file'), async (req, res, next) => {
       throw new AppError('No file uploaded', 400);
     }
 
-    const fileUrl = `/uploads/${req.file.filename}`;
+    const fileUrl = getUploadUrl(req, req.file.filename);
     const fileType = req.file.mimetype.includes('image') ? 'image' :
                      req.file.mimetype.includes('pdf') ? 'pdf' :
                      req.file.mimetype.includes('word') ? 'docx' :
@@ -107,18 +112,18 @@ router.post('/material-list', upload.single('file'), async (req, res, next) => {
 
 /**
  * POST /api/upload/images
- * Upload multiple images
+ * Upload multiple images (up to 20)
  */
-router.post('/images', upload.array('files', 10), async (req, res, next) => {
+router.post('/images', upload.array('files', 20), async (req, res, next) => {
   try {
     const files = req.files as Express.Multer.File[];
-    
+
     if (!files || files.length === 0) {
       throw new AppError('No files uploaded', 400);
     }
 
     const uploadedFiles = files.map((file) => ({
-      url: `/uploads/${file.filename}`,
+      url: getUploadUrl(req, file.filename),
       filename: file.filename,
       originalName: file.originalname,
       size: file.size,

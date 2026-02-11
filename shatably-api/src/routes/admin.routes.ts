@@ -245,34 +245,53 @@ router.get('/products/export/csv', async (req, res, next) => {
   try {
     const products = await prisma.product.findMany({
       include: {
-        category: { select: { nameEn: true } },
-        brand: { select: { nameEn: true } },
-        images: { where: { isPrimary: true }, take: 1 },
+        category: { select: { nameAr: true, nameEn: true } },
+        brand: { select: { nameAr: true, nameEn: true } },
+        images: { orderBy: { sortOrder: 'asc' } },
       },
       orderBy: { createdAt: 'desc' },
     });
 
-    // CSV headers
-    const headers = ['SKU', 'Name (Arabic)', 'Name (English)', 'Description (Arabic)', 'Description (English)', 'Price', 'Original Price', 'Unit', 'Stock', 'Min Order Qty', 'Category', 'Brand', 'Image URL', 'Is Active', 'Is Featured'];
+    // CSV headers - complete bilingual columns
+    const headers = [
+      'SKU',
+      'Name (Arabic)', 'Name (English)',
+      'Description (Arabic)', 'Description (English)',
+      'Price', 'Original Price',
+      'Unit', 'Stock', 'Min Order Qty', 'Max Order Qty', 'Weight',
+      'Category (Arabic)', 'Category (English)',
+      'Brand (Arabic)', 'Brand (English)',
+      'Image URL', 'Gallery Images',
+      'Is Active', 'Is Featured',
+    ];
 
     // CSV rows
-    const rows = products.map((p) => [
-      p.sku,
-      `"${(p.nameAr || '').replace(/"/g, '""')}"`,
-      `"${(p.nameEn || '').replace(/"/g, '""')}"`,
-      `"${(p.descriptionAr || '').replace(/"/g, '""')}"`,
-      `"${(p.descriptionEn || '').replace(/"/g, '""')}"`,
-      p.price.toString(),
-      p.originalPrice?.toString() || '',
-      p.unit,
-      p.stock.toString(),
-      p.minOrderQty.toString(),
-      p.category?.nameEn || '',
-      p.brand?.nameEn || '',
-      p.images[0]?.url || '',
-      p.isActive ? 'true' : 'false',
-      p.isFeatured ? 'true' : 'false',
-    ]);
+    const rows = products.map((p) => {
+      const primaryImage = p.images.find((img) => img.isPrimary)?.url || p.images[0]?.url || '';
+      const galleryImages = p.images.filter((img) => !img.isPrimary).map((img) => img.url).join('|');
+      return [
+        p.sku,
+        `"${(p.nameAr || '').replace(/"/g, '""')}"`,
+        `"${(p.nameEn || '').replace(/"/g, '""')}"`,
+        `"${(p.descriptionAr || '').replace(/"/g, '""')}"`,
+        `"${(p.descriptionEn || '').replace(/"/g, '""')}"`,
+        p.price.toString(),
+        p.originalPrice?.toString() || '',
+        p.unit,
+        p.stock.toString(),
+        p.minOrderQty.toString(),
+        p.maxOrderQty?.toString() || '',
+        p.weight?.toString() || '',
+        `"${(p.category?.nameAr || '').replace(/"/g, '""')}"`,
+        p.category?.nameEn || '',
+        `"${(p.brand?.nameAr || '').replace(/"/g, '""')}"`,
+        p.brand?.nameEn || '',
+        primaryImage,
+        `"${galleryImages}"`,
+        p.isActive ? 'true' : 'false',
+        p.isFeatured ? 'true' : 'false',
+      ];
+    });
 
     // Build CSV content
     const csvContent = [headers.join(','), ...rows.map((row) => row.join(','))].join('\n');
@@ -293,7 +312,7 @@ router.post('/products/import/csv', csvUpload.single('file'), async (req, res, n
       throw new AppError('No file uploaded', 400);
     }
 
-    const csvContent = req.file.buffer.toString('utf-8');
+    const csvContent = req.file.buffer.toString('utf-8').replace(/^\uFEFF/, ''); // Strip BOM
     const lines = csvContent.split('\n').filter((line) => line.trim());
 
     if (lines.length < 2) {
@@ -303,11 +322,13 @@ router.post('/products/import/csv', csvUpload.single('file'), async (req, res, n
     // Parse headers (first line)
     const headers = lines[0].split(',').map((h) => h.trim().toLowerCase());
 
-    // Get categories and brands for lookup
+    // Get categories and brands for lookup (both Arabic and English names)
     const categories = await prisma.category.findMany();
     const brands = await prisma.brand.findMany();
-    const categoryMap = new Map(categories.map((c) => [c.nameEn.toLowerCase(), c.id]));
-    const brandMap = new Map(brands.map((b) => [b.nameEn.toLowerCase(), b.id]));
+    const categoryMapEn = new Map(categories.map((c) => [c.nameEn.toLowerCase(), c.id]));
+    const categoryMapAr = new Map(categories.map((c) => [c.nameAr.toLowerCase(), c.id]));
+    const brandMapEn = new Map(brands.map((b) => [b.nameEn.toLowerCase(), b.id]));
+    const brandMapAr = new Map(brands.map((b) => [b.nameAr.toLowerCase(), b.id]));
 
     const results = { created: 0, updated: 0, errors: [] as string[] };
 
@@ -324,19 +345,29 @@ router.post('/products/import/csv', csvUpload.single('file'), async (req, res, n
         const price = parseFloat(row['price']) || 0;
         const unit = row['unit']?.trim() || 'piece';
         const stock = parseInt(row['stock']) || 0;
-        const categoryName = row['category']?.trim().toLowerCase();
-        const brandName = row['brand']?.trim().toLowerCase();
+        // Support both Arabic and English category/brand name lookups
+        const categoryNameEn = (row['category (english)'] || row['category'])?.trim().toLowerCase();
+        const categoryNameAr = row['category (arabic)']?.trim().toLowerCase();
+        const brandNameEn = (row['brand (english)'] || row['brand'])?.trim().toLowerCase();
+        const brandNameAr = row['brand (arabic)']?.trim().toLowerCase();
 
         if (!nameAr || !nameEn || price <= 0) {
           results.errors.push(`Row ${i + 1}: Missing required fields (name or price)`);
           continue;
         }
 
-        const categoryId = categoryMap.get(categoryName);
+        // Try to find category by English name first, then Arabic
+        const categoryId = (categoryNameEn ? categoryMapEn.get(categoryNameEn) : null)
+          || (categoryNameAr ? categoryMapAr.get(categoryNameAr) : null);
         if (!categoryId) {
-          results.errors.push(`Row ${i + 1}: Category "${categoryName}" not found`);
+          results.errors.push(`Row ${i + 1}: Category "${categoryNameEn || categoryNameAr}" not found`);
           continue;
         }
+
+        // Try to find brand by English name first, then Arabic
+        const brandId = (brandNameEn ? brandMapEn.get(brandNameEn) : null)
+          || (brandNameAr ? brandMapAr.get(brandNameAr) : null)
+          || null;
 
         const productData = {
           nameAr,
@@ -348,37 +379,57 @@ router.post('/products/import/csv', csvUpload.single('file'), async (req, res, n
           unit: unit as any,
           stock,
           minOrderQty: parseInt(row['min order qty']) || 1,
+          maxOrderQty: row['max order qty'] ? parseInt(row['max order qty']) : null,
+          weight: row['weight'] ? parseFloat(row['weight']) : null,
           categoryId,
-          brandId: brandName ? brandMap.get(brandName) || null : null,
+          brandId,
           isActive: row['is active']?.toLowerCase() !== 'false',
           isFeatured: row['is featured']?.toLowerCase() === 'true',
         };
+
+        let productId: string;
 
         // Check if product exists (by SKU)
         if (sku) {
           const existing = await prisma.product.findUnique({ where: { sku } });
           if (existing) {
             await prisma.product.update({ where: { sku }, data: productData });
+            productId = existing.id;
             results.updated++;
-            continue;
+          } else {
+            const created = await prisma.product.create({ data: { ...productData, sku } });
+            productId = created.id;
+            results.created++;
           }
+        } else {
+          const newSku = generateSku(categoryId.slice(0, 3));
+          const created = await prisma.product.create({ data: { ...productData, sku: newSku } });
+          productId = created.id;
+          results.created++;
         }
 
-        // Create new product
-        const newSku = sku || generateSku(categoryId.slice(0, 3));
-        await prisma.product.create({
-          data: { ...productData, sku: newSku },
-        });
-        results.created++;
-
-        // Add image if provided
+        // Handle images - primary image
         const imageUrl = row['image url']?.trim();
-        if (imageUrl) {
-          const product = await prisma.product.findUnique({ where: { sku: newSku } });
-          if (product) {
+        const galleryUrls = row['gallery images']?.trim();
+
+        if (imageUrl || galleryUrls) {
+          // Delete existing images and re-create
+          await prisma.productImage.deleteMany({ where: { productId } });
+
+          if (imageUrl) {
             await prisma.productImage.create({
-              data: { productId: product.id, url: imageUrl, isPrimary: true, sortOrder: 0 },
+              data: { productId, url: imageUrl, isPrimary: true, sortOrder: 0 },
             });
+          }
+
+          // Handle gallery images (pipe-separated URLs)
+          if (galleryUrls) {
+            const urls = galleryUrls.split('|').map((u) => u.trim()).filter(Boolean);
+            for (let j = 0; j < urls.length; j++) {
+              await prisma.productImage.create({
+                data: { productId, url: urls[j], isPrimary: false, sortOrder: j + 1 },
+              });
+            }
           }
         }
       } catch (rowError: any) {

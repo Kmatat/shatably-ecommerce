@@ -33,6 +33,10 @@ export default function AdminSettingsPage() {
       email: 'support@shatably.com',
       currency: 'EGP',
       defaultLanguage: 'ar',
+      addressAr: '',
+      addressEn: '',
+      workingHoursAr: '',
+      workingHoursEn: '',
     },
     delivery: {
       expressEnabled: true,
@@ -117,6 +121,10 @@ export default function AdminSettingsPage() {
         email: 'البريد الإلكتروني',
         currency: 'العملة',
         defaultLanguage: 'اللغة الافتراضية',
+        addressAr: 'العنوان (عربي)',
+        addressEn: 'العنوان (إنجليزي)',
+        workingHoursAr: 'ساعات العمل (عربي)',
+        workingHoursEn: 'ساعات العمل (إنجليزي)',
       },
       delivery: {
         title: 'إعدادات التوصيل',
@@ -174,6 +182,10 @@ export default function AdminSettingsPage() {
         email: 'Email',
         currency: 'Currency',
         defaultLanguage: 'Default Language',
+        addressAr: 'Address (Arabic)',
+        addressEn: 'Address (English)',
+        workingHoursAr: 'Working Hours (Arabic)',
+        workingHoursEn: 'Working Hours (English)',
       },
       delivery: {
         title: 'Delivery Settings',
@@ -342,6 +354,44 @@ export default function AdminSettingsPage() {
                           type="email"
                           value={settings.general.email}
                           onChange={(e) => setSettings({ ...settings, general: { ...settings.general, email: e.target.value } })}
+                          className="input"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">{t.general.addressAr}</label>
+                        <input
+                          type="text"
+                          value={settings.general.addressAr}
+                          onChange={(e) => setSettings({ ...settings, general: { ...settings.general, addressAr: e.target.value } })}
+                          className="input"
+                          dir="rtl"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">{t.general.addressEn}</label>
+                        <input
+                          type="text"
+                          value={settings.general.addressEn}
+                          onChange={(e) => setSettings({ ...settings, general: { ...settings.general, addressEn: e.target.value } })}
+                          className="input"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">{t.general.workingHoursAr}</label>
+                        <input
+                          type="text"
+                          value={settings.general.workingHoursAr}
+                          onChange={(e) => setSettings({ ...settings, general: { ...settings.general, workingHoursAr: e.target.value } })}
+                          className="input"
+                          dir="rtl"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">{t.general.workingHoursEn}</label>
+                        <input
+                          type="text"
+                          value={settings.general.workingHoursEn}
+                          onChange={(e) => setSettings({ ...settings, general: { ...settings.general, workingHoursEn: e.target.value } })}
                           className="input"
                         />
                       </div>

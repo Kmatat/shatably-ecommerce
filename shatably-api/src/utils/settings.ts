@@ -66,6 +66,10 @@ export async function getGeneralSettings() {
     email: '',
     currency: 'EGP',
     defaultLanguage: 'ar',
+    addressAr: '',
+    addressEn: '',
+    workingHoursAr: '',
+    workingHoursEn: '',
   });
 }
 

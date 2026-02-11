@@ -22,6 +22,7 @@ import {
   FolderTree,
   Pencil,
   Shield,
+  Upload,
 } from 'lucide-react';
 import { useLanguageStore, useAuthStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
@@ -51,6 +52,7 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
     { name: { ar: 'العملاء', en: 'Customers' }, href: '/admin/customers', icon: Users },
     { name: { ar: 'التوصيل', en: 'Delivery' }, href: '/admin/delivery', icon: Truck },
     { name: { ar: 'المحتوى', en: 'Content' }, href: '/admin/content', icon: Pencil },
+    { name: { ar: 'رفع الصور', en: 'Uploads' }, href: '/admin/uploads', icon: Upload },
     { name: { ar: 'المستخدمين', en: 'Admin Users' }, href: '/admin/users', icon: Shield },
     { name: { ar: 'التقارير', en: 'Reports' }, href: '/admin/reports', icon: BarChart3 },
     { name: { ar: 'الإعدادات', en: 'Settings' }, href: '/admin/settings', icon: Settings },

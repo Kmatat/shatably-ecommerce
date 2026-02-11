@@ -713,6 +713,34 @@ async function main() {
   }
   console.log(`✅ ${attributesData.length} product attributes created with options`);
 
+  // Seed general settings with contact information
+  const settingsData = [
+    {
+      key: 'general',
+      value: {
+        storeNameAr: 'شطابلي',
+        storeNameEn: 'Shatably',
+        phone: '16XXX',
+        email: 'support@shatably.com',
+        currency: 'EGP',
+        defaultLanguage: 'ar',
+        addressAr: 'المعادي، القاهرة، مصر',
+        addressEn: 'Maadi, Cairo, Egypt',
+        workingHoursAr: 'يومياً من 9 صباحاً حتى 10 مساءً',
+        workingHoursEn: 'Daily from 9 AM to 10 PM',
+      },
+    },
+  ];
+
+  for (const setting of settingsData) {
+    await prisma.setting.upsert({
+      where: { key: setting.key },
+      update: { value: setting.value },
+      create: { key: setting.key, value: setting.value },
+    });
+  }
+  console.log('✅ Store settings seeded');
+
   console.log('\n🎉 Database seeding completed successfully!');
   console.log('📱 Admin Login: 01000000000');
   console.log('🎟️ Promo Codes: WELCOME10, BULK20, FREESHIP');

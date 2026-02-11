@@ -74,16 +74,16 @@ export default function ContactPage() {
   useEffect(() => {
     const fetchContactInfo = async () => {
       try {
-        // Fetch from settings API
         const settingsRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/settings`);
         if (settingsRes.ok) {
           const settingsData = await settingsRes.json();
-          if (settingsData.data) {
+          const store = settingsData.data?.store;
+          if (store) {
             setContactInfo({
-              phone: settingsData.data.phone,
-              email: settingsData.data.email,
-              address: settingsData.data.address,
-              workingHours: settingsData.data.workingHours,
+              phone: store.phone,
+              email: store.email,
+              address: store.address,
+              workingHours: store.workingHours,
             });
           }
         }
