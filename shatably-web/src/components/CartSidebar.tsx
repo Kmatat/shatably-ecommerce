@@ -89,7 +89,7 @@ export default function CartSidebar() {
                     {/* Image */}
                     <div className="relative w-20 h-20 flex-shrink-0">
                       <Image
-                        src={item.product.images[0]}
+                        src={item.product.images?.[0] || '/placeholder.png'}
                         alt={name}
                         fill
                         className="object-cover rounded-lg"

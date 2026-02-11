@@ -196,8 +196,9 @@ export default function MaterialListDetailPage() {
         );
         if (response.ok) {
           const data = await response.json();
+          const products = Array.isArray(data.data) ? data.data : [];
           setSearchResults(
-            data.data.map((p: any) => ({
+            products.map((p: any) => ({
               id: p.id,
               sku: p.sku,
               nameAr: p.nameAr,
@@ -362,13 +363,13 @@ export default function MaterialListDetailPage() {
               <div className="space-y-3">
                 <div className="flex items-center gap-3">
                   <User className="w-5 h-5 text-gray-400" />
-                  <span>{materialList.user.name || 'N/A'}</span>
+                  <span>{materialList.user?.name || 'N/A'}</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <Phone className="w-5 h-5 text-gray-400" />
-                  <span dir="ltr">{materialList.user.phone}</span>
+                  <span dir="ltr">{materialList.user?.phone || '-'}</span>
                 </div>
-                {materialList.user.email && (
+                {materialList.user?.email && (
                   <div className="flex items-center gap-3">
                     <span className="w-5 h-5 text-gray-400">@</span>
                     <span>{materialList.user.email}</span>
