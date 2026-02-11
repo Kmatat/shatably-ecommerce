@@ -705,8 +705,22 @@ router.put('/categories/:id', validateBody(categorySchema.partial()), async (req
 router.delete('/categories/:id', async (req, res, next) => {
   try {
     const { id } = req.params;
-    await prisma.category.update({ where: { id }, data: { isActive: false } });
-    res.json({ success: true, message: 'Category deactivated' });
+
+    // Check if category has products
+    const productCount = await prisma.product.count({ where: { categoryId: id } });
+    if (productCount > 0) {
+      throw new AppError(`Cannot delete category: ${productCount} products are assigned to it. Please reassign or delete them first.`, 400);
+    }
+
+    // Check if category has child categories
+    const childCount = await prisma.category.count({ where: { parentId: id } });
+    if (childCount > 0) {
+      throw new AppError(`Cannot delete category: ${childCount} subcategories exist. Please delete them first.`, 400);
+    }
+
+    // Actually delete the category
+    await prisma.category.delete({ where: { id } });
+    res.json({ success: true, message: 'Category deleted' });
   } catch (error) { next(error); }
 });
 
